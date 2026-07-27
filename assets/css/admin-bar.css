@@ -1,0 +1,218 @@
+/**
+ * WhoChanged — admin bar activity panel (dark, matches #wpadminbar).
+ */
+
+#whochanged-ab-panel {
+	/* Matches wp-admin bar / header defaults */
+	--wc-ab-bg: #23282d;
+	--wc-ab-surface: #191f25;
+	--wc-ab-border: #32373c;
+	--wc-ab-border-soft: #3c434a;
+	--wc-ab-text: #f0f0f1;
+	--wc-ab-muted: #a0a5aa;
+	--wc-ab-accent: #72aee6;
+	--wc-ab-accent-hover: #98cfff;
+	--wc-ab-head-top: #2c3338;
+	--wc-ab-shadow: 0 3px 12px rgba(0, 0, 0, 0.35);
+
+	position: fixed;
+	z-index: 100100;
+	width: 360px;
+	max-width: calc(100vw - 16px);
+	margin: 0;
+	padding: 0;
+	background: var(--wc-ab-bg);
+	color: var(--wc-ab-text);
+	border: 1px solid var(--wc-ab-border);
+	border-radius: 0;
+	box-shadow: var(--wc-ab-shadow);
+	font-size: 13px;
+	line-height: 1.5;
+	text-align: left;
+	box-sizing: border-box;
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+}
+
+#whochanged-ab-panel[hidden] {
+	display: none !important;
+}
+
+.whochanged-ab-panel__inner {
+	display: flex;
+	flex-direction: column;
+	max-height: min(520px, 85vh);
+	overflow: hidden;
+	border-radius: 0;
+}
+
+.whochanged-ab-panel__head {
+	flex-shrink: 0;
+	padding: 14px 16px 12px;
+	background: linear-gradient(180deg, var(--wc-ab-head-top) 0%, var(--wc-ab-bg) 70%);
+	border-bottom: 1px solid var(--wc-ab-border);
+}
+
+.whochanged-ab-panel__title {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin: 0 0 6px;
+	font-size: 15px;
+	font-weight: 600;
+	color: var(--wc-ab-text);
+	letter-spacing: -0.01em;
+}
+
+.whochanged-ab-panel__title-icon {
+	font-size: 20px;
+	width: 20px;
+	height: 20px;
+	color: var(--wc-ab-accent);
+}
+
+.whochanged-ab-panel__title-text {
+	color: var(--wc-ab-text);
+}
+
+.whochanged-ab-panel__subtitle {
+	margin: 0;
+	font-size: 12px;
+	font-weight: 400;
+	color: var(--wc-ab-muted);
+	line-height: 1.4;
+}
+
+.whochanged-ab-panel__body {
+	flex: 1 1 auto;
+	min-height: 72px;
+	max-height: min(360px, 62vh);
+	overflow-y: auto;
+	padding: 0;
+	-webkit-overflow-scrolling: touch;
+	background: var(--wc-ab-bg);
+}
+
+.whochanged-ab-timeline {
+	margin: 0;
+	padding: 4px 0;
+}
+
+.whochanged-ab-event {
+	padding: 10px 16px;
+	border-bottom: 1px solid var(--wc-ab-border-soft);
+}
+
+.whochanged-ab-event:last-child {
+	border-bottom: none;
+}
+
+.whochanged-ab-event__meta {
+	font-size: 11px;
+	font-weight: 500;
+	text-transform: uppercase;
+	letter-spacing: 0.03em;
+	color: var(--wc-ab-muted);
+	margin-bottom: 4px;
+}
+
+.whochanged-ab-event__text {
+	font-size: 13px;
+	color: var(--wc-ab-text);
+	word-break: break-word;
+}
+
+.whochanged-ab-empty,
+.whochanged-ab-loading {
+	margin: 16px;
+	padding: 12px 14px;
+	border-radius: 6px;
+	background: var(--wc-ab-head-top);
+	border: 1px dashed var(--wc-ab-border-soft);
+	color: var(--wc-ab-muted);
+	font-size: 13px;
+	text-align: center;
+}
+
+.whochanged-ab-loading {
+	border-style: solid;
+}
+
+.whochanged-ab-panel__foot {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	flex-wrap: wrap;
+	padding: 10px 14px;
+	background: var(--wc-ab-surface);
+	border-top: 1px solid var(--wc-ab-border);
+}
+
+.whochanged-ab-foot-link {
+	color: var(--wc-ab-accent) !important;
+	text-decoration: none;
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.whochanged-ab-foot-link:hover,
+.whochanged-ab-foot-link:focus {
+	color: var(--wc-ab-accent-hover) !important;
+	text-decoration: underline;
+}
+
+.whochanged-ab-foot-actions {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-left: auto;
+}
+
+.whochanged-ab-reload {
+	display: inline-flex !important;
+	align-items: center;
+	gap: 5px;
+	margin: 0 !important;
+	padding: 6px 10px !important;
+	height: auto !important;
+	min-height: 0 !important;
+	border: 1px solid var(--wc-ab-border-soft) !important;
+	border-radius: 4px !important;
+	background: var(--wc-ab-bg) !important;
+	box-shadow: none !important;
+	color: var(--wc-ab-text) !important;
+	font-size: 12px !important;
+	font-weight: 500 !important;
+	line-height: 1.3 !important;
+	text-decoration: none !important;
+}
+
+.whochanged-ab-reload .dashicons {
+	font-size: 16px;
+	width: 16px;
+	height: 16px;
+	color: var(--wc-ab-accent);
+}
+
+.whochanged-ab-reload:hover,
+.whochanged-ab-reload:focus {
+	border-color: var(--wc-ab-accent) !important;
+	color: var(--wc-ab-accent-hover) !important;
+	background: var(--wc-ab-head-top) !important;
+}
+
+/* Admin bar root item */
+#wp-admin-bar-whochanged-history > .ab-item .ab-icon.dashicons {
+	font-size: 20px;
+	width: 20px;
+	height: 20px;
+	line-height: 1;
+	margin-top: 2px;
+}
+
+@media screen and (max-width: 782px) {
+	#whochanged-ab-panel {
+		width: min(360px, calc(100vw - 12px));
+	}
+}
