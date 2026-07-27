@@ -1,0 +1,73 @@
+{
+	"$schema": "https://playground.wordpress.net/blueprint-schema.json",
+	"meta": {
+		"title": "WhoChanged Demo",
+		"description": "Interactive Playground demo — live logging, filters, statistics, and exports. Settings are preview-only. Buy Now opens Freemius checkout.",
+		"author": "WhoChanged",
+		"categories": ["plugins", "demo"]
+	},
+	"landingPage": "/wp-admin/admin.php?page=whochanged",
+	"preferredVersions": {
+		"php": "8.2",
+		"wp": "latest"
+	},
+	"features": {
+		"networking": true
+	},
+	"steps": [
+		{
+			"step": "setSiteLanguage",
+			"language": "en_US"
+		},
+		{
+			"step": "setSiteOptions",
+			"options": {
+				"blogname": "WhoChanged Demo",
+				"blogdescription": "WordPress activity log — Playground demo",
+				"timezone_string": "UTC",
+				"WPLANG": ""
+			}
+		},
+		{
+			"step": "login",
+			"username": "admin",
+			"password": "password"
+		},
+		{
+			"step": "installPlugin",
+			"pluginData": {
+				"resource": "wordpress.org/plugins",
+				"slug": "woocommerce"
+			},
+			"options": {
+				"activate": true
+			}
+		},
+		{
+			"step": "installPlugin",
+			"pluginData": {
+				"resource": "url",
+				"url": "https://raw.githubusercontent.com/thiendo/wordpress-whochanged-demo/main/whochanged-demo.zip"
+			},
+			"options": {
+				"activate": true
+			}
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php require_once '/wordpress/wp-load.php'; update_option( 'woocommerce_onboarding_profile', array( 'completed' => true ), false ); update_option( 'woocommerce_task_list_hidden', 'yes', false ); update_option( 'woocommerce_task_list_complete', 'yes', false ); update_option( 'woocommerce_coming_soon', 'no', false ); echo 'WooCommerce onboarding skipped';"
+		},
+		{
+			"step": "writeFile",
+			"path": "/tmp/whochanged-seed-demo-logs.php",
+			"data": {
+				"resource": "url",
+				"url": "https://raw.githubusercontent.com/thiendo/wordpress-whochanged-demo/main/seed-demo-logs.php"
+			}
+		},
+		{
+			"step": "runPHP",
+			"code": "<?php require_once '/wordpress/wp-load.php'; require '/tmp/whochanged-seed-demo-logs.php';"
+		}
+	]
+}
