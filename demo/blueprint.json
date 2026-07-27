@@ -36,7 +36,8 @@
 				"url": "https://raw.githubusercontent.com/thiendo/wordpress-whochanged-plugin/main/demo/whochanged-demo.zip"
 			},
 			"options": {
-				"activate": true
+				"activate": true,
+				"targetFolderName": "whochanged"
 			}
 		},
 		{
