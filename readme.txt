@@ -1,5 +1,6 @@
 === WhoChanged ===
 Contributors: douple
+Plugin URI: https://douple.net/whochanged/
 Tags: activity log, audit log, admin log, change tracking, security
 Requires at least: 6.0
 Tested up to: 7.0
@@ -11,6 +12,9 @@ License URI: https://www.gnu.org/licenses/gpl-2.0.html
 Know exactly who changed what in your WordPress admin — options, Customizer, plugins, users, menus, content and more.
 
 == Description ==
+
+**Plugin URL:** [https://douple.net/whochanged/](https://douple.net/whochanged/)
+**Get WhoChanged PRO:** [https://checkout.freemius.com/plugin/35452/plan/58744/](https://checkout.freemius.com/plugin/35452/plan/58744/)
 
 **WhoChanged** is a lightweight activity log for WordPress that quietly watches the admin area and records every meaningful change: who did it, what changed, and when. When something breaks after an update or a client swears "I didn't touch anything," WhoChanged gives you the answer in seconds instead of hours.
 
@@ -76,7 +80,7 @@ WhoChanged is designed for single-site installs. Multisite support is on the roa
 
 = How do I upgrade to PRO? =
 
-Visit **WhoChanged → Settings** and follow the upgrade prompt, or purchase directly from the plugin's product page.
+Purchase WhoChanged PRO at [https://checkout.freemius.com/plugin/35452/plan/58744/](https://checkout.freemius.com/plugin/35452/plan/58744/), or visit the product page at [https://douple.net/whochanged/](https://douple.net/whochanged/). You can also upgrade from **WhoChanged → Settings** / **Account** inside wp-admin.
 
 == Screenshots ==
 
