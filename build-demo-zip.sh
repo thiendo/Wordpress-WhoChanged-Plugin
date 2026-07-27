@@ -62,4 +62,4 @@ cp "$ZIP_PATH" "$ROOT/dist/whochanged-demo.zip"
 
 echo "Built: $ZIP_PATH ($(du -h "$ZIP_PATH" | awk '{print $1}'))"
 echo "Also copied to: $ROOT/dist/whochanged-demo.zip"
-echo "Push this demo/ folder to: git@github.com:thiendo/wordpress-whochanged-demo.git"
+echo "Push this demo/ folder to: git@github.com:thiendo/wordpress-whochanged-plugin.git"
