@@ -31,6 +31,8 @@ require_once WHOCHANGED_PLUGIN_DIR . 'includes/class-pro.php';
 require_once WHOCHANGED_PLUGIN_DIR . 'includes/class-database.php';
 require_once WHOCHANGED_PLUGIN_DIR . 'includes/class-activator.php';
 require_once WHOCHANGED_PLUGIN_DIR . 'includes/class-deactivator.php';
+require_once WHOCHANGED_PLUGIN_DIR . 'includes/class-uninstall.php';
+require_once WHOCHANGED_PLUGIN_DIR . 'includes/freemius-uninstall.php';
 require_once WHOCHANGED_PLUGIN_DIR . 'includes/class-event-normalizer.php';
 require_once WHOCHANGED_PLUGIN_DIR . 'includes/class-mapper.php';
 require_once WHOCHANGED_PLUGIN_DIR . 'includes/class-diff.php';

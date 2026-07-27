@@ -18,7 +18,7 @@ class WhoChanged_Deactivator {
 	 * Deactivation callback.
 	 *
 	 * Data (logs table, options) is intentionally kept so re-activating the
-	 * plugin does not lose history; see uninstall.php for permanent removal.
+	 * plugin does not lose history; see WhoChanged_Uninstall for permanent removal.
 	 *
 	 * @return void
 	 */
