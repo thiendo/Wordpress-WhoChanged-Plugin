@@ -32,26 +32,12 @@
 		{
 			"step": "installPlugin",
 			"pluginData": {
-				"resource": "wordpress.org/plugins",
-				"slug": "woocommerce"
-			},
-			"options": {
-				"activate": true
-			}
-		},
-		{
-			"step": "installPlugin",
-			"pluginData": {
 				"resource": "url",
 				"url": "https://raw.githubusercontent.com/thiendo/wordpress-whochanged-plugin/main/demo/whochanged-demo.zip"
 			},
 			"options": {
 				"activate": true
 			}
-		},
-		{
-			"step": "runPHP",
-			"code": "<?php require_once '/wordpress/wp-load.php'; update_option( 'woocommerce_onboarding_profile', array( 'completed' => true ), false ); update_option( 'woocommerce_task_list_hidden', 'yes', false ); update_option( 'woocommerce_task_list_complete', 'yes', false ); update_option( 'woocommerce_coming_soon', 'no', false ); echo 'WooCommerce onboarding skipped';"
 		},
 		{
 			"step": "writeFile",
