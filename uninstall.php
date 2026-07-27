@@ -28,8 +28,10 @@ if ( 1 !== $whochanged_delete_all_data ) {
 
 global $wpdb;
 
-$whochanged_table = $wpdb->prefix . 'whochanged_logs';
-$wpdb->query( "DROP TABLE IF EXISTS {$whochanged_table}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name is not user input.
+$whochanged_table = esc_sql( $wpdb->prefix . 'whochanged_logs' );
+// Custom table drop on uninstall (opt-in). Table slug is plugin-owned, not user input.
+// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+$wpdb->query( "DROP TABLE IF EXISTS `{$whochanged_table}`" );
 
 $whochanged_options = array(
 	'whochanged_schema_version',

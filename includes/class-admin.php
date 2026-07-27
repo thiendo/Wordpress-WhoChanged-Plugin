@@ -180,7 +180,7 @@ class WhoChanged_Admin {
 		if ( $this->statistics_slug === $page ) {
 			wp_enqueue_script(
 				'whochanged-chartjs',
-				'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js',
+				WHOCHANGED_PLUGIN_URL . 'assets/js/vendor/chart.umd.min.js',
 				array(),
 				'4.4.1',
 				false // Load before inline chart init script.
@@ -189,13 +189,13 @@ class WhoChanged_Admin {
 
 		wp_register_style(
 			'flatpickr',
-			'https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css',
+			WHOCHANGED_PLUGIN_URL . 'assets/css/vendor/flatpickr.min.css',
 			array(),
 			'4.6.13'
 		);
 		wp_register_script(
 			'flatpickr',
-			'https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js',
+			WHOCHANGED_PLUGIN_URL . 'assets/js/vendor/flatpickr.min.js',
 			array(),
 			'4.6.13',
 			true
@@ -209,7 +209,7 @@ class WhoChanged_Admin {
 		if ( 0 === strpos( strtolower( get_user_locale() ), 'vi' ) ) {
 			wp_register_script(
 				'flatpickr-l10n-vn',
-				'https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/l10n/vn.js',
+				WHOCHANGED_PLUGIN_URL . 'assets/js/vendor/flatpickr-l10n/vn.js',
 				array( 'flatpickr' ),
 				'4.6.13',
 				true
@@ -671,7 +671,7 @@ class WhoChanged_Admin {
 		$pro_notice_type = 'success';
 		$nonce           = isset( $_POST['whochanged_pro_nonce'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['whochanged_pro_nonce'] ) ) : '';
 
-		if ( isset( $_POST['whochanged_pro_send_test'] ) && '1' === (string) $_POST['whochanged_pro_send_test'] ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified below before any state change.
+		if ( isset( $_POST['whochanged_pro_send_test'] ) && '1' === sanitize_text_field( wp_unslash( (string) $_POST['whochanged_pro_send_test'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified below before any state change.
 			if ( wp_verify_nonce( $nonce, 'whochanged_pro_settings' ) ) {
 				$pro_email_recipient = isset( $_POST['whochanged_pro_email_recipient'] )
 					? sanitize_email( wp_unslash( (string) $_POST['whochanged_pro_email_recipient'] ) )
@@ -699,7 +699,7 @@ class WhoChanged_Admin {
 				$pro_notice      = esc_html__( 'Invalid PRO settings request.', 'whochanged' );
 				$pro_notice_type = 'error';
 			}
-		} elseif ( isset( $_POST['whochanged_pro_license_activate'] ) && '1' === (string) $_POST['whochanged_pro_license_activate'] ) {
+		} elseif ( isset( $_POST['whochanged_pro_license_activate'] ) && '1' === sanitize_text_field( wp_unslash( (string) $_POST['whochanged_pro_license_activate'] ) ) ) {
 			if ( ! WhoChanged_Pro::is_using_legacy_license() ) {
 				// Freemius is configured; license activation goes through the Freemius
 				// account/checkout UI instead, so this legacy POST action is disabled.
@@ -723,7 +723,7 @@ class WhoChanged_Admin {
 				$pro_notice      = esc_html__( 'Invalid PRO settings request.', 'whochanged' );
 				$pro_notice_type = 'error';
 			}
-		} elseif ( isset( $_POST['whochanged_pro_purge_all'] ) && '1' === (string) $_POST['whochanged_pro_purge_all'] ) {
+		} elseif ( isset( $_POST['whochanged_pro_purge_all'] ) && '1' === sanitize_text_field( wp_unslash( (string) $_POST['whochanged_pro_purge_all'] ) ) ) {
 			if ( ! WhoChanged_Pro::is_active() ) {
 				$pro_notice      = esc_html__( 'Purging all activity logs is a PRO feature.', 'whochanged' );
 				$pro_notice_type = 'error';
@@ -751,7 +751,7 @@ class WhoChanged_Admin {
 				$pro_notice      = esc_html__( 'Invalid PRO settings request.', 'whochanged' );
 				$pro_notice_type = 'error';
 			}
-		} elseif ( isset( $_POST['whochanged_pro_save'] ) && '1' === (string) $_POST['whochanged_pro_save'] ) {
+		} elseif ( isset( $_POST['whochanged_pro_save'] ) && '1' === sanitize_text_field( wp_unslash( (string) $_POST['whochanged_pro_save'] ) ) ) {
 			if ( wp_verify_nonce( $nonce, 'whochanged_pro_settings' ) ) {
 				$pro_retention  = isset( $_POST['whochanged_pro_retention_days'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['whochanged_pro_retention_days'] ) ) : 'unlimited';
 				$allowed_values = array( 'unlimited', '7', '30', '60', '90' );
@@ -2026,10 +2026,10 @@ class WhoChanged_Admin {
 	 */
 	private function parse_log_date_filter_state() {
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- read-only display filters, no state change; the listing page nonce is verified separately for filtering actions.
-		$legacy = isset( $_GET['whochanged_date'] ) ? $this->sanitize_log_date_query( wp_unslash( (string) $_GET['whochanged_date'] ) ) : '';
+		$legacy = isset( $_GET['whochanged_date'] ) ? $this->sanitize_log_date_query( sanitize_text_field( wp_unslash( (string) $_GET['whochanged_date'] ) ) ) : '';
 		$dr_raw = isset( $_GET['whochanged_dr'] ) ? sanitize_key( wp_unslash( (string) $_GET['whochanged_dr'] ) ) : '';
-		$df     = isset( $_GET['whochanged_df'] ) ? $this->sanitize_log_date_query( wp_unslash( (string) $_GET['whochanged_df'] ) ) : '';
-		$dt     = isset( $_GET['whochanged_dt'] ) ? $this->sanitize_log_date_query( wp_unslash( (string) $_GET['whochanged_dt'] ) ) : '';
+		$df     = isset( $_GET['whochanged_df'] ) ? $this->sanitize_log_date_query( sanitize_text_field( wp_unslash( (string) $_GET['whochanged_df'] ) ) ) : '';
+		$dt     = isset( $_GET['whochanged_dt'] ) ? $this->sanitize_log_date_query( sanitize_text_field( wp_unslash( (string) $_GET['whochanged_dt'] ) ) ) : '';
 		// phpcs:enable WordPress.Security.NonceVerification.Recommended
 
 		$allowed = array( 'all', 'today', 'yesterday', '7d', '30d', 'custom' );

@@ -22,7 +22,7 @@ rsync -a \
 	--exclude '.git' \
 	--exclude '.DS_Store' \
 	--exclude 'node_modules' \
-	--exclude 'vendor' \
+	--exclude '/vendor/' \
 	--exclude 'tests' \
 	--exclude 'landing-page' \
 	--exclude 'demo-testdrive' \

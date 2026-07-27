@@ -47,7 +47,7 @@ register_deactivation_hook( __FILE__, array( 'WhoChanged_Deactivator', 'deactiva
  * @return void
  */
 function whochanged_init() {
-	load_plugin_textdomain( 'whochanged', false, dirname( plugin_basename( __FILE__ ) ) . '/languages' );
+	// Translations for WordPress.org-hosted plugins are loaded automatically since WP 4.6.
 	WhoChanged_Database::maybe_upgrade_schema();
 
 	// PRO: schedule daily cleanup for retention-based log deletion.
@@ -109,7 +109,7 @@ function whochanged_pro_cleanup_logs_cron() {
 		return;
 	}
 
-	$wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE created_at < %s", $cutoff_gmt ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name is not user input.
+	$wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE created_at < %s", $cutoff_gmt ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- table name from WhoChanged_Database::table_name(), not user input.
 }
 
 add_action( 'whochanged_pro_cleanup_logs', 'whochanged_pro_cleanup_logs_cron' );
