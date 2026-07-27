@@ -16,10 +16,6 @@
 	},
 	"steps": [
 		{
-			"step": "setSiteLanguage",
-			"language": "en_US"
-		},
-		{
 			"step": "setSiteOptions",
 			"options": {
 				"blogname": "WhoChanged Demo",
