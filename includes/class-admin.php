@@ -52,6 +52,17 @@ class WhoChanged_Admin {
 	}
 
 	/**
+	 * Logger accessor. Exposed (instead of keeping $logger strictly private)
+	 * so the PRO export modules (includes/pro/) can reuse the same query
+	 * logic without duplicating it.
+	 *
+	 * @return WhoChanged_Logger
+	 */
+	public function get_logger() {
+		return $this->logger;
+	}
+
+	/**
 	 * Register admin hooks.
 	 *
 	 * @return void
@@ -112,17 +123,27 @@ class WhoChanged_Admin {
 			exit;
 		}
 
-		if ( in_array( $export_format, array( 'xls', 'pdf' ), true ) && ! WhoChanged_Pro::is_active() ) {
-			wp_die( esc_html__( 'Excel (XLS) and PDF export are PRO features. Upgrade to WhoChanged PRO to unlock them.', 'whochanged' ) );
+		if ( in_array( $export_format, array( 'xls', 'pdf' ), true ) ) {
+			if ( ! WhoChanged_Pro::ships_premium_modules() ) {
+				wp_die( esc_html__( 'Available in WhoChanged PRO.', 'whochanged' ) );
+			}
+
+			if ( ! WhoChanged_Pro::is_active() ) {
+				wp_die( esc_html__( 'Excel (XLS) and PDF export are PRO features. Upgrade to WhoChanged PRO to unlock them.', 'whochanged' ) );
+			}
 		}
 
 		if ( 'xls' === $export_format ) {
-			$this->export_logs_xls( $filter_user, $action_type, $log_tab, $date_state, $search_q );
+			if ( class_exists( 'WhoChanged_Pro_Exports' ) ) {
+				WhoChanged_Pro_Exports::export_logs_xls( $this, $filter_user, $action_type, $log_tab, $date_state, $search_q );
+			}
 			exit;
 		}
 
 		if ( 'pdf' === $export_format ) {
-			$this->export_logs_pdf( $filter_user, $action_type, $log_tab, $date_state, $search_q );
+			if ( class_exists( 'WhoChanged_Pro_Exports' ) ) {
+				WhoChanged_Pro_Exports::export_logs_pdf( $this, $filter_user, $action_type, $log_tab, $date_state, $search_q );
+			}
 			exit;
 		}
 	}
@@ -182,8 +203,15 @@ class WhoChanged_Admin {
 				'whochanged-chartjs',
 				WHOCHANGED_PLUGIN_URL . 'assets/js/vendor/chart.umd.min.js',
 				array(),
-				'4.4.1',
-				false // Load before inline chart init script.
+				'4.5.0',
+				true
+			);
+			wp_enqueue_script(
+				'whochanged-stats-charts',
+				WHOCHANGED_PLUGIN_URL . 'assets/js/stats-charts.js',
+				array( 'whochanged-chartjs' ),
+				WHOCHANGED_VERSION,
+				true
 			);
 		}
 
@@ -332,17 +360,21 @@ class WhoChanged_Admin {
 				return;
 			}
 
-			if ( 'pdf' === $export_format && WhoChanged_Pro::is_active() ) {
-				$this->export_logs_pdf( $filter_user, $action_type, $log_tab, $date_state, $search_q );
+			if ( 'pdf' === $export_format && WhoChanged_Pro::ships_premium_modules() && WhoChanged_Pro::is_active() ) {
+				WhoChanged_Pro_Exports::export_logs_pdf( $this, $filter_user, $action_type, $log_tab, $date_state, $search_q );
 				return;
 			}
 		}
 
-		$result                = $this->logger->get_logs( max( 1, $page ), 20, $filter_user, $action_type, $log_tab, $date_state['from'], $date_state['to'], $search_q );
-		$action_types          = $this->logger->get_action_types();
-		$groups                = $this->group_logs( $result['items'] );
-		$analytics             = $this->logger->get_analytics_counts( $filter_user, $action_type, $log_tab, $date_state['from'], $date_state['to'], $search_q );
-		$whochanged_pro_active = WhoChanged_Pro::is_active();
+		$result                  = $this->logger->get_logs( max( 1, $page ), 20, $filter_user, $action_type, $log_tab, $date_state['from'], $date_state['to'], $search_q );
+		$action_types            = $this->logger->get_action_types();
+		$groups                  = $this->group_logs( $result['items'] );
+		$analytics               = $this->logger->get_analytics_counts( $filter_user, $action_type, $log_tab, $date_state['from'], $date_state['to'], $search_q );
+		$whochanged_ships_pro    = WhoChanged_Pro::ships_premium_modules();
+		$whochanged_pro_active   = $whochanged_ships_pro && WhoChanged_Pro::is_active();
+		$whochanged_pro_lock_url = $whochanged_ships_pro
+			? admin_url( 'admin.php?page=' . $this->settings_slug )
+			: WhoChanged_Pro::get_upgrade_url();
 
 		$users = get_users(
 			array(
@@ -526,13 +558,15 @@ class WhoChanged_Admin {
 							<?php else : ?>
 								<a
 									class="button button-secondary whochanged-pro-export-btn whochanged-pro-locked"
-									href="<?php echo esc_url( admin_url( 'admin.php?page=' . $this->settings_slug ) ); ?>"
-									title="<?php echo esc_attr__( 'Excel export is a PRO feature.', 'whochanged' ); ?>"
+									href="<?php echo esc_url( $whochanged_pro_lock_url ); ?>"
+									<?php echo $whochanged_ships_pro ? '' : ' target="_blank" rel="noopener noreferrer"'; ?>
+									title="<?php echo esc_attr__( 'Available in WhoChanged PRO.', 'whochanged' ); ?>"
 								><?php echo esc_html__( 'Export XLS', 'whochanged' ); ?> <span class="whochanged-pro-badge whochanged-pro-badge--inline"><?php esc_html_e( 'PRO', 'whochanged' ); ?></span></a>
 								<a
 									class="button button-secondary whochanged-pro-export-btn whochanged-pro-locked"
-									href="<?php echo esc_url( admin_url( 'admin.php?page=' . $this->settings_slug ) ); ?>"
-									title="<?php echo esc_attr__( 'PDF export is a PRO feature.', 'whochanged' ); ?>"
+									href="<?php echo esc_url( $whochanged_pro_lock_url ); ?>"
+									<?php echo $whochanged_ships_pro ? '' : ' target="_blank" rel="noopener noreferrer"'; ?>
+									title="<?php echo esc_attr__( 'Available in WhoChanged PRO.', 'whochanged' ); ?>"
 								><?php echo esc_html__( 'Export PDF', 'whochanged' ); ?> <span class="whochanged-pro-badge whochanged-pro-badge--inline"><?php esc_html_e( 'PRO', 'whochanged' ); ?></span></a>
 							<?php endif; ?>
 						</div>
@@ -724,7 +758,10 @@ class WhoChanged_Admin {
 				$pro_notice_type = 'error';
 			}
 		} elseif ( isset( $_POST['whochanged_pro_purge_all'] ) && '1' === sanitize_text_field( wp_unslash( (string) $_POST['whochanged_pro_purge_all'] ) ) ) {
-			if ( ! WhoChanged_Pro::is_active() ) {
+			if ( ! WhoChanged_Pro::ships_premium_modules() ) {
+				$pro_notice      = esc_html__( 'Available in WhoChanged PRO.', 'whochanged' );
+				$pro_notice_type = 'error';
+			} elseif ( ! WhoChanged_Pro::is_active() ) {
 				$pro_notice      = esc_html__( 'Purging all activity logs is a PRO feature.', 'whochanged' );
 				$pro_notice_type = 'error';
 			} elseif ( wp_verify_nonce( $nonce, 'whochanged_pro_settings' ) ) {
@@ -735,7 +772,7 @@ class WhoChanged_Admin {
 					$pro_notice      = esc_html__( 'Purge cancelled: confirmation is invalid.', 'whochanged' );
 					$pro_notice_type = 'error';
 				} else {
-					$result = $this->purge_all_activity_logs( get_current_user_id() );
+					$result = WhoChanged_Pro_Purge::purge_all_activity_logs( get_current_user_id() );
 					if ( isset( $result['ok'] ) && $result['ok'] ) {
 						$pro_notice = sprintf(
 							/* translators: %d: number of deleted logs */
@@ -830,7 +867,8 @@ class WhoChanged_Admin {
 		$pro_viewer_roles         = get_option( 'whochanged_pro_viewer_roles', array( 'administrator' ) );
 		$pro_include_system_logs  = (int) get_option( 'whochanged_pro_include_system_logs', 1 );
 		$delete_data_on_uninstall = (int) get_option( 'whochanged_delete_data_on_uninstall', 0 );
-		$whochanged_pro_active    = WhoChanged_Pro::is_active();
+		$whochanged_ships_pro     = WhoChanged_Pro::ships_premium_modules();
+		$whochanged_pro_active    = $whochanged_ships_pro && WhoChanged_Pro::is_active();
 		$whochanged_using_legacy  = WhoChanged_Pro::is_using_legacy_license();
 		$whochanged_fs_instance   = $whochanged_using_legacy ? null : whochanged_fs();
 		$whochanged_plugin_file   = plugin_basename( WHOCHANGED_PLUGIN_FILE );
@@ -846,13 +884,27 @@ class WhoChanged_Admin {
 		?>
 		<div class="wrap whochanged-wrap">
 			<h1><?php echo esc_html__( 'Settings', 'whochanged' ); ?></h1>
-			<p class="description"><?php echo esc_html__( 'Configure WhoChanged PRO features.', 'whochanged' ); ?></p>
+			<p class="description">
+				<?php
+				echo $whochanged_ships_pro
+					? esc_html__( 'Configure WhoChanged PRO features.', 'whochanged' )
+					: esc_html__( 'Manage Free plan settings. Upgrade to WhoChanged PRO for retention controls, alerts, exports and more.', 'whochanged' );
+				?>
+			</p>
 
-			<?php if ( ! $whochanged_pro_active ) : ?>
+			<?php if ( $whochanged_ships_pro && ! $whochanged_pro_active ) : ?>
 				<div class="notice notice-warning whochanged-pro-upsell">
 					<p>
 						<strong><?php echo esc_html__( "You're on the Free plan.", 'whochanged' ); ?></strong>
 						<?php echo esc_html__( 'Retention control, email alerts, extended viewer/logging roles, and bulk log purge are PRO features. Settings below are saved but only take effect once PRO is active.', 'whochanged' ); ?>
+					</p>
+				</div>
+			<?php elseif ( ! $whochanged_ships_pro ) : ?>
+				<div class="notice notice-warning whochanged-pro-upsell">
+					<p>
+						<strong><?php echo esc_html__( "You're on the Free plan.", 'whochanged' ); ?></strong>
+						<?php echo esc_html__( 'Retention control, email alerts, extended viewer/logging roles, bulk log purge, and XLS/PDF export are available in WhoChanged PRO.', 'whochanged' ); ?>
+						<a href="<?php echo esc_url( WhoChanged_Pro::get_upgrade_url() ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html__( 'Learn more', 'whochanged' ); ?></a>
 					</p>
 				</div>
 			<?php endif; ?>
@@ -918,6 +970,7 @@ class WhoChanged_Admin {
 							<?php endif; ?>
 						</section>
 
+						<?php if ( $whochanged_ships_pro ) : ?>
 						<section class="whochanged-settings-card">
 							<h3>
 								<?php echo esc_html__( 'Retention', 'whochanged' ); ?>
@@ -1078,6 +1131,26 @@ class WhoChanged_Admin {
 								</div>
 							</div>
 						</section>
+						<?php else : ?>
+						<section class="whochanged-settings-card whochanged-settings-card--wide">
+							<h3>
+								<?php echo esc_html__( 'PRO features', 'whochanged' ); ?>
+								<span class="whochanged-pro-badge"><?php esc_html_e( 'PRO', 'whochanged' ); ?></span>
+							</h3>
+							<p class="description"><?php echo esc_html__( 'These features are available in WhoChanged PRO (separate premium package):', 'whochanged' ); ?></p>
+							<ul class="whochanged-pro-feature-list">
+								<li><?php echo esc_html__( 'Configurable log retention (or unlimited) instead of the fixed Free retention window.', 'whochanged' ); ?></li>
+								<li><?php echo esc_html__( 'Email alerts for important events (theme switches, plugin installs, admin role changes).', 'whochanged' ); ?></li>
+								<li><?php echo esc_html__( 'Restrict activity logging to specific user roles.', 'whochanged' ); ?></li>
+								<li><?php echo esc_html__( 'Grant activity log viewer access to non-Administrator roles.', 'whochanged' ); ?></li>
+								<li><?php echo esc_html__( 'Excel (XLS) and PDF export of activity logs and statistics.', 'whochanged' ); ?></li>
+								<li><?php echo esc_html__( 'Bulk purge of all activity logs.', 'whochanged' ); ?></li>
+							</ul>
+							<p class="description">
+								<a class="button button-primary" href="<?php echo esc_url( WhoChanged_Pro::get_upgrade_url() ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html__( 'Get WhoChanged PRO', 'whochanged' ); ?></a>
+							</p>
+						</section>
+						<?php endif; ?>
 
 						<section class="whochanged-settings-card">
 							<h3><?php echo esc_html__( 'System Logs', 'whochanged' ); ?></h3>
@@ -1100,26 +1173,33 @@ class WhoChanged_Admin {
 								</label>
 								<p class="description"><?php echo esc_html__( 'Applies when the plugin is removed via Plugins → Delete, not on simple deactivation. Saved together with the PRO settings below.', 'whochanged' ); ?></p>
 							</div>
-							<p class="description"><?php echo esc_html__( 'Permanently delete all activity logs. This action cannot be undone.', 'whochanged' ); ?></p>
-							<div class="whochanged-settings-field">
-								<label class="whochanged-check-row">
-									<input type="checkbox" name="whochanged_pro_purge_checkbox" value="1">
-									<span><?php echo esc_html__( 'I understand this will permanently remove all logs.', 'whochanged' ); ?></span>
-								</label>
-							</div>
-							<div class="whochanged-settings-field">
-								<label for="whochanged-pro-purge-confirm"><?php echo esc_html__( 'Type to confirm', 'whochanged' ); ?>: <code>PURGE ALL ACTIVITY LOGS</code></label>
-								<input type="text" id="whochanged-pro-purge-confirm" name="whochanged_pro_purge_confirm_text" class="regular-text" autocomplete="off">
-							</div>
-							<p class="description">
-								<button type="submit" class="button button-secondary whochanged-button-danger" name="whochanged_pro_purge_all" value="1" <?php disabled( ! $whochanged_pro_active ); ?>>
-									<?php echo esc_html__( 'Purge All Activity Log', 'whochanged' ); ?>
-								</button>
-								<?php if ( ! $whochanged_pro_active ) : ?>
-									<span class="whochanged-pro-badge"><?php echo esc_html__( 'PRO', 'whochanged' ); ?></span>
-								<?php endif; ?>
-							</p>
-							<div class="whochanged-purge-feedback" data-whochanged-purge-feedback aria-live="polite"></div>
+							<?php if ( $whochanged_ships_pro ) : ?>
+								<p class="description"><?php echo esc_html__( 'Permanently delete all activity logs. This action cannot be undone.', 'whochanged' ); ?></p>
+								<div class="whochanged-settings-field">
+									<label class="whochanged-check-row">
+										<input type="checkbox" name="whochanged_pro_purge_checkbox" value="1">
+										<span><?php echo esc_html__( 'I understand this will permanently remove all logs.', 'whochanged' ); ?></span>
+									</label>
+								</div>
+								<div class="whochanged-settings-field">
+									<label for="whochanged-pro-purge-confirm"><?php echo esc_html__( 'Type to confirm', 'whochanged' ); ?>: <code>PURGE ALL ACTIVITY LOGS</code></label>
+									<input type="text" id="whochanged-pro-purge-confirm" name="whochanged_pro_purge_confirm_text" class="regular-text" autocomplete="off">
+								</div>
+								<p class="description">
+									<button type="submit" class="button button-secondary whochanged-button-danger" name="whochanged_pro_purge_all" value="1" <?php disabled( ! $whochanged_pro_active ); ?>>
+										<?php echo esc_html__( 'Purge All Activity Log', 'whochanged' ); ?>
+									</button>
+									<?php if ( ! $whochanged_pro_active ) : ?>
+										<span class="whochanged-pro-badge"><?php echo esc_html__( 'PRO', 'whochanged' ); ?></span>
+									<?php endif; ?>
+								</p>
+								<div class="whochanged-purge-feedback" data-whochanged-purge-feedback aria-live="polite"></div>
+							<?php else : ?>
+								<p class="description">
+									<?php echo esc_html__( 'Bulk-purging all activity logs is available in WhoChanged PRO.', 'whochanged' ); ?>
+									<a class="button button-secondary" href="<?php echo esc_url( WhoChanged_Pro::get_upgrade_url() ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html__( 'Get WhoChanged PRO', 'whochanged' ); ?></a>
+								</p>
+							<?php endif; ?>
 						</section>
 					</div>
 
@@ -1319,7 +1399,11 @@ class WhoChanged_Admin {
 			);
 		}
 
-		$whochanged_pro_active = WhoChanged_Pro::is_active();
+		$whochanged_ships_pro    = WhoChanged_Pro::ships_premium_modules();
+		$whochanged_pro_active   = $whochanged_ships_pro && WhoChanged_Pro::is_active();
+		$whochanged_pro_lock_url = $whochanged_ships_pro
+			? admin_url( 'admin.php?page=' . $this->settings_slug )
+			: WhoChanged_Pro::get_upgrade_url();
 
 		// Period-over-period trend for the headline metric.
 		$total_items          = isset( $analytics['total_items'] ) ? (int) $analytics['total_items'] : 0;
@@ -1550,8 +1634,9 @@ class WhoChanged_Admin {
 					<?php else : ?>
 						<a
 							class="button button-secondary whochanged-pro-locked"
-							href="<?php echo esc_url( admin_url( 'admin.php?page=' . $this->settings_slug ) ); ?>"
-							title="<?php echo esc_attr__( 'Exporting statistics as PDF is a PRO feature.', 'whochanged' ); ?>"
+							href="<?php echo esc_url( $whochanged_pro_lock_url ); ?>"
+							<?php echo $whochanged_ships_pro ? '' : ' target="_blank" rel="noopener noreferrer"'; ?>
+							title="<?php echo esc_attr__( 'Available in WhoChanged PRO.', 'whochanged' ); ?>"
 						><?php echo esc_html__( 'Export Statistics PDF', 'whochanged' ); ?> <span class="whochanged-pro-badge whochanged-pro-badge--inline"><?php esc_html_e( 'PRO', 'whochanged' ); ?></span></a>
 					<?php endif; ?>
 				</div>
@@ -1755,7 +1840,7 @@ class WhoChanged_Admin {
 								<li class="whochanged-stat-ranked-row">
 									<span class="whochanged-stat-ranked-label"><?php echo esc_html( $item['label'] ); ?></span>
 									<span class="whochanged-stat-ranked-bar-track">
-										<span class="whochanged-stat-ranked-bar-fill" style="width: <?php echo esc_attr( $bar_percent ); ?>%;"></span>
+										<span class="whochanged-stat-ranked-bar-fill" style="--whochanged-bar-width: <?php echo esc_attr( (string) $bar_percent ); ?>%;"></span>
 									</span>
 									<span class="whochanged-stat-ranked-value"><?php echo esc_html( number_format_i18n( $item['value'] ) ); ?></span>
 								</li>
@@ -1767,236 +1852,44 @@ class WhoChanged_Admin {
 				</div>
 			</div>
 
-			<script type="text/javascript">
-				(function () {
-					var attempts = 0;
-					function init() {
-						attempts++;
-						if (typeof Chart === 'undefined') {
-							if (attempts < 40) {
-								setTimeout(init, 150);
-							}
-							return;
-						}
-					var colorPalette = <?php echo wp_json_encode( $chart_palette ); ?>;
-
-					var actions = 
-					<?php
-					echo wp_json_encode(
-						array(
-							'labels'      => $action_labels,
-							'values'      => $action_values,
-							'centerLabel' => $action_other_count > 0 ? __( 'Top 6', 'whochanged' ) : __( 'Total', 'whochanged' ),
-						)
-					);
-					?>
-									;
-					var users = 
-					<?php
-					echo wp_json_encode(
-						array(
-							'labels'      => $user_labels,
-							'values'      => $user_values,
-							'centerLabel' => $user_other_count > 0 ? __( 'Top 6', 'whochanged' ) : __( 'Total', 'whochanged' ),
-						)
-					);
-					?>
-					;
-					var objects = 
-					<?php
-					echo wp_json_encode(
-						array(
-							'labels' => $object_labels,
-							'values' => $object_values,
-						)
-					);
-					?>
-					;
-					var days = 
-					<?php
-					echo wp_json_encode(
-						array(
-							'labels' => $days_labels,
-							'values' => $days_values,
-						)
-					);
-					?>
-					;
-					var hours = 
-					<?php
-					echo wp_json_encode(
-						array(
-							'labels' => $hours_labels,
-							'values' => $hours_values,
-						)
-					);
-					?>
-					;
-					var weekdays = 
-					<?php
-					echo wp_json_encode(
-						array(
-							'labels' => $weekday_labels,
-							'values' => $weekday_values,
-						)
-					);
-					?>
-					;
-
-					function pickColors(count) {
-						var out = [];
-						for (var i = 0; i < count; i++) {
-							out.push(colorPalette[i % colorPalette.length]);
-						}
-						return out;
-					}
-
-					function hexToRgba(hex, alpha) {
-						var r = parseInt(hex.slice(1, 3), 16);
-						var g = parseInt(hex.slice(3, 5), 16);
-						var b = parseInt(hex.slice(5, 7), 16);
-						return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
-					}
-
-					// Draws the slice total in the empty center of a doughnut chart —
-					// the number an admin actually looks for first.
-					var centerTextPlugin = {
-						id: 'whochangedCenterText',
-						afterDraw: function (chart) {
-							var total = (chart.data.datasets[0].data || []).reduce(function (a, b) { return a + b; }, 0);
-							var ctx = chart.ctx;
-							var area = chart.chartArea;
-							var cx = (area.left + area.right) / 2;
-							var cy = (area.top + area.bottom) / 2;
-							ctx.save();
-							ctx.textAlign = 'center';
-							ctx.textBaseline = 'middle';
-							ctx.font = '600 20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-							ctx.fillStyle = '#1f2937';
-							ctx.fillText(String(total), cx, cy - 8);
-							ctx.font = '500 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-							ctx.fillStyle = '#6b7280';
-							ctx.fillText(chart.data.centerLabel || '', cx, cy + 12);
-							ctx.restore();
-						}
-					};
-
-					function mkDoughnut(ctx, data) {
-						if (!data.values.length) {
-							return null;
-						}
-						return new Chart(ctx, {
-							type: 'doughnut',
-							data: {
-								labels: data.labels,
-								centerLabel: data.centerLabel,
-								datasets: [{
-									data: data.values,
-									backgroundColor: pickColors(data.values.length),
-									borderColor: '#fff',
-									borderWidth: 2,
-									hoverOffset: 4
-								}]
-							},
-							plugins: [centerTextPlugin],
-							options: {
-								responsive: true,
-								maintainAspectRatio: false,
-								cutout: '68%',
-								plugins: {
-									legend: { display: false },
-									tooltip: {
-										callbacks: {
-											label: function (item) {
-												var sum = item.dataset.data.reduce(function (a, b) { return a + b; }, 0);
-												var pct = sum > 0 ? Math.round((item.parsed / sum) * 100) : 0;
-												return item.label + ': ' + item.parsed + ' (' + pct + '%)';
-											}
-										}
-									}
-								}
-							}
-						});
-					}
-
-					function mkLine(ctx, data) {
-						var gradient = ctx.createLinearGradient(0, 0, 0, 260);
-						gradient.addColorStop(0, hexToRgba(colorPalette[0], 0.28));
-						gradient.addColorStop(1, hexToRgba(colorPalette[0], 0.02));
-						return new Chart(ctx, {
-							type: 'line',
-							data: {
-								labels: data.labels,
-								datasets: [{
-									label: '<?php echo esc_js( esc_html__( 'Items', 'whochanged' ) ); ?>',
-									data: data.values,
-									borderColor: colorPalette[0],
-									backgroundColor: gradient,
-									fill: true,
-									tension: 0.35,
-									pointRadius: 0,
-									pointHoverRadius: 5,
-									pointBackgroundColor: colorPalette[0],
-									borderWidth: 2
-								}]
-							},
-							options: {
-								responsive: true,
-								maintainAspectRatio: false,
-								interaction: { intersect: false, mode: 'index' },
-								plugins: {
-									legend: { display: false }
-								},
-								scales: {
-									x: { grid: { display: false } },
-									y: { beginAtZero: true, ticks: { precision: 0 } }
-								}
-							}
-						});
-					}
-
-					function mkBar(ctx, data, colorIndex) {
-						var color = colorPalette[colorIndex % colorPalette.length];
-						return new Chart(ctx, {
-							type: 'bar',
-							data: {
-								labels: data.labels,
-								datasets: [{
-									data: data.values,
-									backgroundColor: hexToRgba(color, 0.85),
-									borderRadius: 4,
-									maxBarThickness: 36
-								}]
-							},
-							options: {
-								responsive: true,
-								maintainAspectRatio: false,
-								plugins: { legend: { display: false } },
-								scales: {
-									x: { grid: { display: false } },
-									y: { beginAtZero: true, ticks: { precision: 0 } }
-								}
-							}
-						});
-					}
-
-					var c1 = document.getElementById('whochangedChartActions');
-					if (c1) { mkDoughnut(c1.getContext('2d'), actions); }
-					var c2 = document.getElementById('whochangedChartUsers');
-					if (c2) { mkDoughnut(c2.getContext('2d'), users); }
-					var c3 = document.getElementById('whochangedChartDays');
-					if (c3) { mkLine(c3.getContext('2d'), days); }
-					var c4 = document.getElementById('whochangedChartObjects');
-					if (c4) { mkBar(c4.getContext('2d'), objects, 0); }
-					var c5 = document.getElementById('whochangedChartHours');
-					if (c5) { mkBar(c5.getContext('2d'), hours, 4); }
-					var c6 = document.getElementById('whochangedChartWeekdays');
-					if (c6) { mkBar(c6.getContext('2d'), weekdays, 5); }
-				}
-
-				init();
-			})();
-		</script>
+			<?php
+			wp_localize_script(
+				'whochanged-stats-charts',
+				'WhoChangedStats',
+				array(
+					'palette'  => $chart_palette,
+					'actions'  => array(
+						'labels'      => $action_labels,
+						'values'      => $action_values,
+						'centerLabel' => $action_other_count > 0 ? __( 'Top 6', 'whochanged' ) : __( 'Total', 'whochanged' ),
+					),
+					'users'    => array(
+						'labels'      => $user_labels,
+						'values'      => $user_values,
+						'centerLabel' => $user_other_count > 0 ? __( 'Top 6', 'whochanged' ) : __( 'Total', 'whochanged' ),
+					),
+					'objects'  => array(
+						'labels' => $object_labels,
+						'values' => $object_values,
+					),
+					'days'     => array(
+						'labels' => $days_labels,
+						'values' => $days_values,
+					),
+					'hours'    => array(
+						'labels' => $hours_labels,
+						'values' => $hours_values,
+					),
+					'weekdays' => array(
+						'labels' => $weekday_labels,
+						'values' => $weekday_values,
+					),
+					'i18n'     => array(
+						'items' => __( 'Items', 'whochanged' ),
+					),
+				)
+			);
+			?>
 		</div>
 		<?php
 	}
@@ -2284,10 +2177,13 @@ class WhoChanged_Admin {
 	/**
 	 * Group logs by user/action/time window.
 	 *
+	 * Public: also used by the PRO export modules (includes/pro/) to render
+	 * XLS/PDF exports from the same grouped rows as the CSV export below.
+	 *
 	 * @param array<int, array<string, mixed>> $items Log rows.
 	 * @return array<int, array<string, mixed>>
 	 */
-	private function group_logs( array $items ) {
+	public function group_logs( array $items ) {
 		$groups = array();
 
 		foreach ( $items as $item ) {
@@ -3278,275 +3174,15 @@ class WhoChanged_Admin {
 	}
 
 	/**
-	 * Export current filtered log groups as XLS (tab-separated, Excel friendly).
-	 *
-	 * @param int    $filter_user User filter (0 for system/all users depending on tab).
-	 * @param string $action_type Action filter.
-	 * @param string $log_tab user|system.
-	 * @param array  $date_state Parsed date state.
-	 * @param string $search_q Search keyword.
-	 * @return void
-	 */
-	private function export_logs_xls( $filter_user, $action_type, $log_tab, array $date_state, $search_q ) {
-		$per_page     = 200;
-		$max_raw_rows = 5000;
-
-		$page           = 1;
-		$all_rows       = array();
-		$all_rows_count = 0;
-		$truncated      = false;
-
-		do {
-			$result = $this->logger->get_logs(
-				$page,
-				$per_page,
-				$filter_user,
-				$action_type,
-				$log_tab,
-				$date_state['from'],
-				$date_state['to'],
-				$search_q
-			);
-
-			$rows       = is_array( $result['items'] ) ? $result['items'] : array();
-			$rows_count = count( $rows );
-
-			if ( $all_rows_count + $rows_count > $max_raw_rows ) {
-				$remaining  = max( 0, $max_raw_rows - $all_rows_count );
-				$rows       = array_slice( $rows, 0, $remaining );
-				$rows_count = count( $rows );
-				$truncated  = true;
-			}
-
-			$all_rows        = array_merge( $all_rows, $rows );
-			$all_rows_count += $rows_count;
-			++$page;
-		} while ( ! empty( $rows ) && $all_rows_count < $max_raw_rows && $page <= 1000 );
-
-		$groups   = $this->group_logs( $all_rows );
-		$filename = 'whochanged-logs-' . gmdate( 'Y-m-d-H-i-s' ) . '.xls';
-
-		nocache_headers();
-		header( 'Content-Type: application/vnd.ms-excel; charset=utf-8' );
-		header( 'Content-Disposition: attachment; filename="' . esc_attr( $filename ) . '"' );
-
-		$xml  = '<?xml version="1.0" encoding="UTF-8"?>';
-		$xml .= '<?mso-application progid="Excel.Sheet"?>';
-		$xml .= '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"';
-		$xml .= ' xmlns:o="urn:schemas-microsoft-com:office:office"';
-		$xml .= ' xmlns:x="urn:schemas-microsoft-com:office:excel"';
-		$xml .= ' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"';
-		$xml .= ' xmlns:html="http://www.w3.org/TR/REC-html40">';
-		$xml .= '<Styles>';
-		$xml .= '<Style ss:ID="sHeader"><Font ss:Bold="1"/><Interior ss:Color="#F6F6F6" ss:Pattern="Solid"/></Style>';
-		$xml .= '<Style ss:ID="sWrap"><Alignment ss:Vertical="Top" ss:WrapText="1"/></Style>';
-		$xml .= '</Styles>';
-		$xml .= '<Worksheet ss:Name="WhoChanged Logs"><Table>';
-		$xml .= '<Column ss:Width="130"/><Column ss:Width="120"/><Column ss:Width="180"/><Column ss:Width="240"/><Column ss:Width="340"/><Column ss:Width="140"/>';
-
-		$xml .= '<Row ss:StyleID="sHeader">';
-		$xml .= '<Cell><Data ss:Type="String">Time</Data></Cell>';
-		$xml .= '<Cell><Data ss:Type="String">User</Data></Cell>';
-		$xml .= '<Cell><Data ss:Type="String">Event</Data></Cell>';
-		$xml .= '<Cell><Data ss:Type="String">Description</Data></Cell>';
-		$xml .= '<Cell><Data ss:Type="String">Details</Data></Cell>';
-		$xml .= '<Cell><Data ss:Type="String">EventType</Data></Cell>';
-		$xml .= '</Row>';
-
-		foreach ( $groups as $group ) {
-			$uid  = (int) ( isset( $group['user_id'] ) ? $group['user_id'] : 0 );
-			$user = $uid ? get_user_by( 'id', $uid ) : false;
-			$name = $user ? $user->display_name : __( 'System', 'whochanged' );
-
-			$event_title      = isset( $group['title'] ) ? (string) $group['title'] : '';
-			$subtitle         = isset( $group['subtitle'] ) ? (string) $group['subtitle'] : '';
-			$lines            = isset( $group['lines'] ) && is_array( $group['lines'] ) ? $group['lines'] : array();
-			$description_text = trim( $subtitle );
-			if ( '' === $description_text ) {
-				$description_text = $this->lines_to_export_text( $lines );
-			}
-			$details_text = $this->lines_to_export_text( $lines );
-			$event_type   = '';
-			if ( isset( $group['main_event'] ) && is_array( $group['main_event'] ) && isset( $group['main_event']['type'] ) ) {
-				$event_type = (string) $group['main_event']['type'];
-			}
-
-			$xml .= '<Row ss:StyleID="sWrap">';
-			$xml .= '<Cell><Data ss:Type="String">' . $this->xml_escape( isset( $group['time'] ) ? (string) $group['time'] : '' ) . '</Data></Cell>';
-			$xml .= '<Cell><Data ss:Type="String">' . $this->xml_escape( (string) $name ) . '</Data></Cell>';
-			$xml .= '<Cell><Data ss:Type="String">' . $this->xml_escape( $event_title ) . '</Data></Cell>';
-			$xml .= '<Cell><Data ss:Type="String">' . $this->xml_escape( $description_text ) . '</Data></Cell>';
-			$xml .= '<Cell><Data ss:Type="String">' . $this->xml_escape( $details_text ) . '</Data></Cell>';
-			$xml .= '<Cell><Data ss:Type="String">' . $this->xml_escape( $event_type ) . '</Data></Cell>';
-			$xml .= '</Row>';
-		}
-
-		if ( $truncated ) {
-			$xml .= '<Row ss:StyleID="sWrap">';
-			$xml .= '<Cell/><Cell/><Cell/><Cell/>';
-			$xml .= '<Cell><Data ss:Type="String">' . $this->xml_escape(
-				sprintf(
-					/* translators: %d: maximum number of raw log rows included in the export. */
-					__( 'Export truncated (limit: %d raw rows).', 'whochanged' ),
-					$max_raw_rows
-				)
-			) . '</Data></Cell>';
-			$xml .= '<Cell/>';
-			$xml .= '</Row>';
-		}
-
-		$xml .= '</Table></Worksheet></Workbook>';
-
-		echo $xml; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-		exit;
-	}
-
-	/**
-	 * Export current filtered log groups as PDF.
-	 *
-	 * @param int    $filter_user User filter (0 for system/all users depending on tab).
-	 * @param string $action_type Action filter.
-	 * @param string $log_tab user|system.
-	 * @param array  $date_state Parsed date state.
-	 * @param string $search_q Search keyword.
-	 * @return void
-	 */
-	private function export_logs_pdf( $filter_user, $action_type, $log_tab, array $date_state, $search_q ) {
-		$vendor_autoload = defined( 'WHOCHANGED_PLUGIN_DIR' ) ? WHOCHANGED_PLUGIN_DIR . 'vendor/autoload.php' : '';
-		if ( '' === (string) $vendor_autoload || ! file_exists( $vendor_autoload ) ) {
-			wp_die( esc_html__( 'PDF export is not available (missing dompdf).', 'whochanged' ) );
-		}
-		require_once $vendor_autoload; // phpcs:ignore WordPressVIPMinimumRequirements.WPInclude.OutsideOfTheme
-
-		if ( ! class_exists( 'Dompdf\Dompdf' ) ) {
-			wp_die( esc_html__( 'PDF export is not available (dompdf not loaded).', 'whochanged' ) );
-		}
-
-		$per_page     = 200;
-		$max_raw_rows = 2500; // Keep PDF rendering reasonable.
-
-		$page           = 1;
-		$all_rows       = array();
-		$all_rows_count = 0;
-		$truncated      = false;
-
-		do {
-			$result = $this->logger->get_logs(
-				$page,
-				$per_page,
-				$filter_user,
-				$action_type,
-				$log_tab,
-				$date_state['from'],
-				$date_state['to'],
-				$search_q
-			);
-
-			$rows       = is_array( $result['items'] ) ? $result['items'] : array();
-			$rows_count = count( $rows );
-
-			if ( $all_rows_count + $rows_count > $max_raw_rows ) {
-				$remaining  = max( 0, $max_raw_rows - $all_rows_count );
-				$rows       = array_slice( $rows, 0, $remaining );
-				$rows_count = count( $rows );
-				$truncated  = true;
-			}
-
-			$all_rows        = array_merge( $all_rows, $rows );
-			$all_rows_count += $rows_count;
-			++$page;
-		} while ( ! empty( $rows ) && $all_rows_count < $max_raw_rows && $page <= 1000 );
-
-		$groups = $this->group_logs( $all_rows );
-
-		$search_txt = '' !== (string) $search_q ? (string) $search_q : __( 'All', 'whochanged' );
-		$filename   = 'whochanged-logs-' . gmdate( 'Y-m-d-H-i-s' ) . '.pdf';
-
-		// Build simple, dompdf-friendly HTML.
-		$title = esc_html__( 'WhoChanged Activity Export', 'whochanged' );
-		$html  = '<!doctype html><html><head><meta charset="utf-8">';
-		$html .= '<style>
-			body{font-family: DejaVu Sans, Arial, sans-serif;font-size:12px;color:#111;}
-			h1{font-size:16px;margin:0 0 10px;}
-			.meta{margin:0 0 12px;color:#444;}
-			table{width:100%;border-collapse:collapse;table-layout:fixed;}
-			th,td{border:1px solid #ddd;padding:6px;vertical-align:top;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}
-			th{background:#f6f6f6;text-align:left;}
-			.small{color:#666;font-size:11px;}
-		</style>';
-		$html .= '</head><body>';
-		$html .= '<h1>' . $title . '</h1>';
-		$html .= '<div class="meta">';
-		$html .= '<div><strong>' . esc_html__( 'Tab', 'whochanged' ) . ':</strong> ' . esc_html( ucfirst( (string) $log_tab ) ) . '</div>';
-		$html .= '<div><strong>' . esc_html__( 'Search', 'whochanged' ) . ':</strong> ' . esc_html( $search_txt ) . '</div>';
-		if ( ! empty( $date_state['from'] ) && ! empty( $date_state['to'] ) ) {
-			$html .= '<div><strong>' . esc_html__( 'Date range', 'whochanged' ) . ':</strong> ' . esc_html( (string) $date_state['from'] ) . ' → ' . esc_html( (string) $date_state['to'] ) . '</div>';
-		}
-		$html .= '</div>';
-
-		$html .= '<table>';
-		$html .= '<thead><tr>';
-		$html .= '<th style="width:14%;">' . esc_html__( 'Time', 'whochanged' ) . '</th>';
-		$html .= '<th style="width:10%;">' . esc_html__( 'User', 'whochanged' ) . '</th>';
-		$html .= '<th style="width:20%;">' . esc_html__( 'Event', 'whochanged' ) . '</th>';
-		$html .= '<th style="width:21%;">' . esc_html__( 'Description', 'whochanged' ) . '</th>';
-		$html .= '<th style="width:35%;">' . esc_html__( 'Details', 'whochanged' ) . '</th>';
-		$html .= '</tr></thead><tbody>';
-
-		foreach ( $groups as $group ) {
-			$uid  = (int) ( isset( $group['user_id'] ) ? $group['user_id'] : 0 );
-			$user = $uid ? get_user_by( 'id', $uid ) : false;
-			$name = $user ? $user->display_name : __( 'System', 'whochanged' );
-
-			$event_title      = isset( $group['title'] ) ? (string) $group['title'] : '';
-			$subtitle         = isset( $group['subtitle'] ) ? (string) $group['subtitle'] : '';
-			$lines            = isset( $group['lines'] ) && is_array( $group['lines'] ) ? $group['lines'] : array();
-			$description_text = trim( $subtitle );
-			if ( '' === $description_text ) {
-				$description_text = $this->lines_to_export_text( $lines );
-			}
-			$details_text = $this->lines_to_export_multiline_text( $lines );
-
-			$event_title      = $this->sanitize_pdf_text( $event_title );
-			$description_text = $this->sanitize_pdf_text( $description_text );
-			$details_text     = $this->sanitize_pdf_text( $details_text );
-
-			$html .= '<tr>';
-			$html .= '<td>' . esc_html( isset( $group['time'] ) ? (string) $group['time'] : '' ) . '</td>';
-			$html .= '<td>' . esc_html( (string) $name ) . '</td>';
-			$html .= '<td>' . esc_html( $event_title ) . '</td>';
-			$html .= '<td>' . esc_html( $description_text ) . '</td>';
-			$html .= '<td>' . nl2br( esc_html( $details_text ) ) . '</td>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-			$html .= '</tr>';
-		}
-
-		if ( $truncated ) {
-			$html .= '<tr><td colspan="5" class="small">' . esc_html__( 'Export truncated for performance.', 'whochanged' ) . '</td></tr>';
-		}
-
-		$html .= '</tbody></table>';
-		$html .= '</body></html>';
-
-		$dompdf = new Dompdf\Dompdf();
-		$dompdf->loadHtml( $html, 'UTF-8' );
-		$dompdf->setPaper( 'A4', 'landscape' );
-		$dompdf->render();
-
-		nocache_headers();
-		header( 'Content-Type: application/pdf' );
-		header( 'Content-Disposition: attachment; filename="' . esc_attr( $filename ) . '"' );
-
-		echo $dompdf->output(); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-		exit;
-	}
-
-	/**
 	 * Convert mapped lines into a one-line export text.
+	 *
+	 * Public: shared with the PRO export modules (includes/pro/) for the
+	 * XLS/PDF exports, which reuse the same one-line format as CSV.
 	 *
 	 * @param array<int, array<string, string>> $lines Mapped lines.
 	 * @return string
 	 */
-	private function lines_to_export_text( array $lines ) {
+	public function lines_to_export_text( array $lines ) {
 		if ( empty( $lines ) ) {
 			return '';
 		}
@@ -3561,29 +3197,6 @@ class WhoChanged_Admin {
 		}
 
 		return implode( ' | ', $parts );
-	}
-
-	/**
-	 * Convert mapped lines into multi-line export text.
-	 *
-	 * @param array<int, array<string, string>> $lines Mapped lines.
-	 * @return string
-	 */
-	private function lines_to_export_multiline_text( array $lines ) {
-		if ( empty( $lines ) ) {
-			return '';
-		}
-
-		$parts = array();
-		foreach ( $lines as $line ) {
-			$label   = isset( $line['label'] ) ? (string) $line['label'] : '';
-			$from    = isset( $line['from'] ) ? (string) $line['from'] : '';
-			$to      = isset( $line['to'] ) ? (string) $line['to'] : '';
-			$label   = '' !== $label ? $label . ': ' : '';
-			$parts[] = $label . $from . ' -> ' . $to;
-		}
-
-		return implode( "\n", $parts );
 	}
 
 	/**
@@ -3606,86 +3219,6 @@ class WhoChanged_Admin {
 		}
 
 		return $value;
-	}
-
-	/**
-	 * Sanitize text for dompdf output (remove emoji/symbols not supported by font).
-	 *
-	 * @param string $text Raw text.
-	 * @return string
-	 */
-	private function sanitize_pdf_text( $text ) {
-		$text = (string) $text;
-		$text = preg_replace( '/[\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}]/u', '', $text );
-		$text = str_replace( array( "\r\n", "\r" ), "\n", $text );
-		$text = preg_replace( '/[ \t]{2,}/', ' ', (string) $text );
-		return trim( (string) $text );
-	}
-
-	/**
-	 * Purge all activity logs and write a red-flag audit entry.
-	 *
-	 * @param int $actor_user_id User ID who performed purge.
-	 * @return array<string, mixed>
-	 */
-	private function purge_all_activity_logs( $actor_user_id ) {
-		global $wpdb;
-
-		$table_name    = WhoChanged_Database::table_name();
-		$actor_user_id = absint( $actor_user_id );
-		$before_count  = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$table_name}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name is not user input.
-		$deleted       = $wpdb->query( "DELETE FROM {$table_name}" ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- table name is not user input.
-
-		if ( false === $deleted ) {
-			return array(
-				'ok'      => false,
-				'deleted' => 0,
-			);
-		}
-
-		$actor          = $actor_user_id ? get_user_by( 'id', $actor_user_id ) : false;
-		$actor_name     = $actor ? (string) $actor->display_name : __( 'System', 'whochanged' );
-		$created_at_gmt = current_time( 'mysql', 1 );
-		$group_id       = 'purge|' . $actor_user_id . '|' . str_replace( array( ' ', ':' ), '-', $created_at_gmt );
-		$changes        = wp_json_encode(
-			array(
-				'purge' => array(
-					'before' => (string) $before_count,
-					'after'  => '0',
-				),
-			)
-		);
-
-		if ( false === $changes ) {
-			$changes = wp_json_encode( array() );
-		}
-
-		$wpdb->insert(
-			$table_name,
-			array(
-				'user_id'     => $actor_user_id,
-				'group_id'    => sanitize_text_field( $group_id ),
-				'type'        => 'logs_purged',
-				'label'       => __( '🗑️ All activity logs purged', 'whochanged' ),
-				'meta'        => wp_json_encode(
-					array(
-						'by_user'      => $actor_name,
-						'deleted_rows' => (int) $before_count,
-					)
-				),
-				'action_type' => 'logs_purged',
-				'object_type' => 'system',
-				'object_name' => 'activity_logs',
-				'changes'     => $changes,
-				'created_at'  => $created_at_gmt,
-			),
-			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
-		);
-
-		return array(
-			'ok'      => true,
-			'deleted' => (int) $before_count,
-		);
 	}
 
 	/**
@@ -3733,8 +3266,10 @@ class WhoChanged_Admin {
 			return true;
 		}
 
-		// Extending viewer access to non-admin roles is a PRO feature.
-		if ( ! WhoChanged_Pro::is_active() ) {
+		// Extending viewer access to non-admin roles is a PRO feature — and
+		// requires the local premium module code to even exist (Free package
+		// never ships includes/pro/), so Free always requires manage_options.
+		if ( ! WhoChanged_Pro::ships_premium_modules() || ! WhoChanged_Pro::is_active() ) {
 			return false;
 		}
 
@@ -3754,16 +3289,6 @@ class WhoChanged_Admin {
 		}
 
 		return ! empty( array_intersect( $user->roles, $viewer_roles ) );
-	}
-
-	/**
-	 * Escape string for SpreadsheetML XML output.
-	 *
-	 * @param string $text Raw text.
-	 * @return string
-	 */
-	private function xml_escape( $text ) {
-		return htmlspecialchars( (string) $text, ENT_QUOTES | ENT_XML1, 'UTF-8' );
 	}
 
 	/**

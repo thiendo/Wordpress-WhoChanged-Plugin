@@ -3,7 +3,7 @@
  * Plugin Name: WhoChanged
  * Plugin URI: https://douple.net/whochanged/
  * Description: Track critical admin changes including options, Customizer updates, and plugin lifecycle events.
- * Version: 1.1.0
+ * Version: 1.1.1
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Author: Douple
@@ -20,13 +20,21 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WHOCHANGED_VERSION', '1.1.0' );
+define( 'WHOCHANGED_VERSION', '1.1.1' );
 define( 'WHOCHANGED_PLUGIN_FILE', __FILE__ );
 define( 'WHOCHANGED_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WHOCHANGED_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
 // Load Freemius as early as possible, per Freemius SDK integration guidelines.
 require_once WHOCHANGED_PLUGIN_DIR . 'includes/class-pro.php';
+
+// PRO module implementations (exports, purge, ...) are intentionally kept out
+// of the WordPress.org Free package — includes/pro/ simply doesn't exist
+// there (see playground/build-free-zip.sh), so this only loads when the
+// current package actually ships that directory (e.g. the Freemius PRO zip).
+if ( WhoChanged_Pro::ships_premium_modules() ) {
+	require_once WHOCHANGED_PLUGIN_DIR . 'includes/pro/load.php';
+}
 
 require_once WHOCHANGED_PLUGIN_DIR . 'includes/class-database.php';
 require_once WHOCHANGED_PLUGIN_DIR . 'includes/class-activator.php';
@@ -87,10 +95,14 @@ define( 'WHOCHANGED_FREE_RETENTION_DAYS', 30 );
  * PRO plan: honors the configured retention window, including "unlimited"
  * (no automatic cleanup).
  *
+ * Packages that don't ship the local premium module code (the WordPress.org
+ * Free package) always use the fixed Free retention window — there is no
+ * local premium code path to unlock, regardless of any stored license state.
+ *
  * @return void
  */
 function whochanged_pro_cleanup_logs_cron() {
-	if ( WhoChanged_Pro::is_active() ) {
+	if ( WhoChanged_Pro::ships_premium_modules() && WhoChanged_Pro::is_active() ) {
 		$retention = get_option( 'whochanged_pro_retention_days', 'unlimited' );
 		if ( 'unlimited' === (string) $retention ) {
 			return;

@@ -126,8 +126,9 @@ class WhoChanged_Logger {
 			return ! empty( $pro['include_system_logs'] );
 		}
 
-		if ( ! WhoChanged_Pro::is_active() ) {
-			// Role-based logging restriction is a PRO feature; log everyone on Free.
+		if ( ! WhoChanged_Pro::ships_premium_modules() || ! WhoChanged_Pro::is_active() ) {
+			// Role-based logging restriction is a PRO feature; log everyone on Free
+			// (also true when this package doesn't ship the premium module code).
 			return true;
 		}
 
@@ -184,7 +185,7 @@ class WhoChanged_Logger {
 	 * @return bool
 	 */
 	private function pro_should_send_email( array $normalized ) {
-		if ( ! WhoChanged_Pro::is_active() ) {
+		if ( ! WhoChanged_Pro::ships_premium_modules() || ! WhoChanged_Pro::is_active() ) {
 			return false;
 		}
 

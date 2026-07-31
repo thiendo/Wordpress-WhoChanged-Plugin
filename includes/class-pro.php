@@ -1,21 +1,12 @@
 <?php
 /**
- * Freemius bootstrap + PRO plan gating.
+ * Freemius bootstrap + PRO gating — FREE / WordPress.org package overlay.
  *
- * HOW TO FINISH THE FREEMIUS INTEGRATION
- * ---------------------------------------
- * 1. Create your product at https://dashboard.freemius.com and copy the
- *    generated "Plugin ID" and "Public Key" from the SDK integration form.
- * 2. Replace the two placeholder constants below (WHOCHANGED_FS_PRODUCT_ID
- *    and WHOCHANGED_FS_PUBLIC_KEY) with the real values.
- * 3. That's it — {@see whochanged_fs()} will automatically start reporting
- *    to Freemius and {@see WhoChanged_Pro::is_active()} will automatically
- *    switch from the legacy license-key fallback to real Freemius licensing.
- *
- * Until the placeholders are filled in, the SDK never boots (no network
- * calls, no admin notices) and PRO status falls back to the legacy
- * `whochanged_pro_license_active` option so the plugin keeps working during
- * development.
+ * Differences from production source:
+ * - No WHOCHANGED_PRO_DEV unlock path.
+ * - No legacy whochanged_pro_license_active unlock.
+ * - is_active() always false: this package does not ship includes/pro/.
+ * - Freemius SDK remains for Account / Upgrade / checkout UI only.
  *
  * @package WhoChanged
  */
@@ -24,16 +15,10 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-/**
- * Freemius product ID for WhoChanged (dashboard.freemius.com).
- */
 if ( ! defined( 'WHOCHANGED_FS_PRODUCT_ID' ) ) {
 	define( 'WHOCHANGED_FS_PRODUCT_ID', '35452' );
 }
 
-/**
- * Freemius SDK public key for WhoChanged.
- */
 if ( ! defined( 'WHOCHANGED_FS_PUBLIC_KEY' ) ) {
 	define( 'WHOCHANGED_FS_PUBLIC_KEY', 'pk_d88ab214f8e85fa3dd71509ff15fe' );
 }
@@ -41,63 +26,58 @@ if ( ! defined( 'WHOCHANGED_FS_PUBLIC_KEY' ) ) {
 require_once WHOCHANGED_PLUGIN_DIR . 'includes/freemius-bootstrap.php';
 
 /**
- * Resolves the active plan status (PRO vs Free) regardless of whether the
- * Freemius product has been configured yet.
+ * Resolves PRO vs Free for the WordPress.org Free package.
  */
 class WhoChanged_Pro {
 
 	/**
-	 * Whether PRO features should be unlocked for the current site.
-	 *
-	 * Resolution order:
-	 * 1. `WHOCHANGED_PRO_DEV` constant (local development override).
-	 * 2. Freemius plan (once the product is configured; see class-pro.php header).
-	 * 3. Legacy manual license option (kept for continuity pre-Freemius).
+	 * The WordPress.org Free package never unlocks local PRO features — it
+	 * doesn't even ship the includes/pro/ implementations (see
+	 * {@see ships_premium_modules()} and playground/build-free-zip.sh), so
+	 * there is nothing for a license to unlock here. PRO functionality is
+	 * only available via the separate Freemius PRO download. The Freemius
+	 * SDK is still loaded (see freemius-bootstrap.php) purely for account/
+	 * upgrade UI (checkout, "Manage Account", etc.), not to gate local code.
 	 *
 	 * @return bool
 	 */
 	public static function is_active() {
-		static $cache = null;
-
-		if ( null !== $cache ) {
-			return $cache;
-		}
-
-		if ( defined( 'WHOCHANGED_PRO_DEV' ) && WHOCHANGED_PRO_DEV ) {
-			$cache = true;
-
-			return $cache;
-		}
-
-		$fs = whochanged_fs();
-		if ( is_object( $fs ) && method_exists( $fs, 'can_use_premium_code' ) ) {
-			$cache = (bool) $fs->can_use_premium_code();
-
-			return $cache;
-		}
-
-		$cache = 1 === (int) get_option( 'whochanged_pro_license_active', 0 );
-
-		/**
-		 * Filters the resolved PRO status. Mainly useful for tests/staging.
-		 *
-		 * @param bool $is_active Whether PRO is currently active.
-		 */
-		$cache = (bool) apply_filters( 'whochanged_is_pro_active', $cache );
-
-		return $cache;
+		return false;
 	}
 
 	/**
-	 * Whether the site is running on the legacy (pre-Freemius) manual license flow.
-	 * Used by the settings screen to decide whether to still show the manual
-	 * license key field or defer entirely to the Freemius account/billing UI.
+	 * Free package always uses Freemius account/billing UI (no legacy key field).
 	 *
 	 * @return bool
 	 */
 	public static function is_using_legacy_license() {
-		$fs = whochanged_fs();
+		return false;
+	}
 
-		return ! is_object( $fs );
+	/**
+	 * The Free package never ships includes/pro/ (excluded by
+	 * playground/build-free-zip.sh), so this always resolves to false.
+	 * Kept as a real filesystem check (rather than a hardcoded `false`) so
+	 * behavior stays identical to production if that ever changes.
+	 *
+	 * @return bool
+	 */
+	public static function ships_premium_modules() {
+		return is_readable( WHOCHANGED_PLUGIN_DIR . 'includes/pro/load.php' );
+	}
+
+	/**
+	 * @return string
+	 */
+	public static function get_upgrade_url() {
+		$fs = whochanged_fs();
+		if ( is_object( $fs ) && method_exists( $fs, 'get_upgrade_url' ) ) {
+			$url = $fs->get_upgrade_url();
+			if ( is_string( $url ) && '' !== $url ) {
+				return $url;
+			}
+		}
+
+		return 'https://douple.net/whochanged/#pricing';
 	}
 }

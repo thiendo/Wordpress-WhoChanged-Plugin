@@ -187,7 +187,13 @@ class WhoChanged_Hooks {
 	 * @return mixed
 	 */
 	public function on_pre_update_option( $new_value, $option, $old_value ) {
-		$option_name                                  = sanitize_text_field( (string) $option );
+		$option_name = sanitize_text_field( (string) $option );
+
+		// Avoid reading arbitrary / sensitive options that we would never log.
+		if ( ! $this->should_track_option_event( $option_name ) || $this->should_skip_option( $option_name ) || $this->is_sensitive_option_name( $option_name ) ) {
+			return $new_value;
+		}
+
 		$this->captured_old_values[ $option_name ]    = maybe_unserialize( $old_value );
 		$this->captured_db_old_values[ $option_name ] = maybe_unserialize( get_option( $option_name, null ) );
 
@@ -481,6 +487,10 @@ class WhoChanged_Hooks {
 			return;
 		}
 
+		if ( $this->is_sensitive_option_name( $option_name ) ) {
+			return;
+		}
+
 		$old_value = get_option( $option_name );
 		$event     = WhoChanged_Event_Normalizer::normalize_option_delete( $option_name, $old_value );
 		if ( false === $event ) {
@@ -543,8 +553,15 @@ class WhoChanged_Hooks {
 		}
 		$keys = isset( $id_data['keys'] ) && is_array( $id_data['keys'] ) ? $id_data['keys'] : array();
 
-		$type  = isset( $setting->type ) ? (string) $setting->type : 'option';
-		$value = ( 'theme_mod' === $type ) ? get_theme_mod( $base ) : get_option( $base );
+		$type = isset( $setting->type ) ? (string) $setting->type : 'option';
+		if ( 'theme_mod' === $type ) {
+			$value = get_theme_mod( $base );
+		} else {
+			if ( $this->is_sensitive_option_name( $base ) ) {
+				return null;
+			}
+			$value = get_option( $base );
+		}
 
 		foreach ( $keys as $key ) {
 			if ( is_array( $value ) && array_key_exists( $key, $value ) ) {
@@ -1752,8 +1769,24 @@ class WhoChanged_Hooks {
 			}
 		}
 
-		// Keep obvious security-related settings regardless of source.
-		$security_markers = array(
+		// Do not track options whose names look like secrets / credentials.
+		if ( $this->is_sensitive_option_name( $option_name ) ) {
+			return false;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Whether an option name looks like a secret/credential that must not be
+	 * read into the activity log (or even fetched "just in case").
+	 *
+	 * @param string $option_name Option name.
+	 * @return bool
+	 */
+	private function is_sensitive_option_name( $option_name ) {
+		$option_name = strtolower( (string) $option_name );
+		$markers     = array(
 			'password',
 			'passkey',
 			'webauthn',
@@ -1761,18 +1794,21 @@ class WhoChanged_Hooks {
 			'mfa',
 			'captcha',
 			'firewall',
-			'login',
-			'auth',
-			'session',
 			'jwt',
 			'secret',
 			'token',
-			'nonce',
 			'api_key',
+			'apikey',
 			'license_key',
 			'recovery',
+			'auth_key',
+			'secure_auth',
+			'logged_in_key',
+			'nonce_key',
+			'salt',
 		);
-		foreach ( $security_markers as $marker ) {
+
+		foreach ( $markers as $marker ) {
 			if ( false !== strpos( $option_name, $marker ) ) {
 				return true;
 			}
