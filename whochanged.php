@@ -3,7 +3,7 @@
  * Plugin Name: WhoChanged
  * Plugin URI: https://douple.net/whochanged/
  * Description: Track critical admin changes including options, Customizer updates, and plugin lifecycle events.
- * Version: 1.1.1
+ * Version: 1.1.2
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * Author: Douple
@@ -20,18 +20,23 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WHOCHANGED_VERSION', '1.1.1' );
+define( 'WHOCHANGED_VERSION', '1.1.2' );
 define( 'WHOCHANGED_PLUGIN_FILE', __FILE__ );
 define( 'WHOCHANGED_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WHOCHANGED_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
 
+/**
+ * Number of days of activity log kept on the Free plan.
+ */
+define( 'WHOCHANGED_FREE_RETENTION_DAYS', 30 );
+
 // Load Freemius as early as possible, per Freemius SDK integration guidelines.
 require_once WHOCHANGED_PLUGIN_DIR . 'includes/class-pro.php';
 
-// PRO module implementations (exports, purge, ...) are intentionally kept out
-// of the WordPress.org Free package — includes/pro/ simply doesn't exist
-// there (see playground/build-free-zip.sh), so this only loads when the
-// current package actually ships that directory (e.g. the Freemius PRO zip).
+// PRO module implementations are intentionally kept out of the WordPress.org
+// Free package — includes/pro/ simply doesn't exist there
+// (see playground/build-free-zip.sh), so this only loads when the current
+// package actually ships that directory (e.g. the Freemius PRO zip).
 if ( WhoChanged_Pro::ships_premium_modules() ) {
 	require_once WHOCHANGED_PLUGIN_DIR . 'includes/pro/load.php';
 }
@@ -60,7 +65,6 @@ function whochanged_init() {
 	// Translations for WordPress.org-hosted plugins are loaded automatically since WP 4.6.
 	WhoChanged_Database::maybe_upgrade_schema();
 
-	// PRO: schedule daily cleanup for retention-based log deletion.
 	if ( ! wp_next_scheduled( 'whochanged_pro_cleanup_logs' ) ) {
 		wp_schedule_event( time() + HOUR_IN_SECONDS, 'daily', 'whochanged_pro_cleanup_logs' );
 	}
@@ -80,40 +84,17 @@ function whochanged_init() {
 add_action( 'plugins_loaded', 'whochanged_init' );
 
 /**
- * Number of days of activity log kept on the Free plan. Not configurable —
- * PRO unlocks a configurable/unlimited retention window instead.
- */
-define( 'WHOCHANGED_FREE_RETENTION_DAYS', 30 );
-
-/**
- * Cleanup old logs based on retention days.
+ * Cleanup old logs using the Free fixed retention window.
  *
- * Free plan: always enforces a fixed {@see WHOCHANGED_FREE_RETENTION_DAYS}
- * window, regardless of the `whochanged_pro_retention_days` option (that
- * control is PRO-only and disabled in the Settings UI on Free).
- *
- * PRO plan: honors the configured retention window, including "unlimited"
- * (no automatic cleanup).
- *
- * Packages that don't ship the local premium module code (the WordPress.org
- * Free package) always use the fixed Free retention window — there is no
- * local premium code path to unlock, regardless of any stored license state.
+ * Packages that ship includes/pro/ may shorten/extend this via the
+ * `whochanged_log_retention_days` filter (0 = skip cleanup / unlimited).
  *
  * @return void
  */
-function whochanged_pro_cleanup_logs_cron() {
-	if ( WhoChanged_Pro::ships_premium_modules() && WhoChanged_Pro::is_active() ) {
-		$retention = get_option( 'whochanged_pro_retention_days', 'unlimited' );
-		if ( 'unlimited' === (string) $retention ) {
-			return;
-		}
-
-		$days = absint( $retention );
-		if ( $days <= 0 ) {
-			return;
-		}
-	} else {
-		$days = WHOCHANGED_FREE_RETENTION_DAYS;
+function whochanged_cleanup_logs_cron() {
+	$days = (int) apply_filters( 'whochanged_log_retention_days', WHOCHANGED_FREE_RETENTION_DAYS );
+	if ( $days <= 0 ) {
+		return;
 	}
 
 	global $wpdb;
@@ -126,4 +107,4 @@ function whochanged_pro_cleanup_logs_cron() {
 	$wpdb->query( $wpdb->prepare( "DELETE FROM {$table} WHERE created_at < %s", $cutoff_gmt ) ); // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter -- table name from WhoChanged_Database::table_name(), not user input.
 }
 
-add_action( 'whochanged_pro_cleanup_logs', 'whochanged_pro_cleanup_logs_cron' );
+add_action( 'whochanged_pro_cleanup_logs', 'whochanged_cleanup_logs_cron' );

@@ -5,7 +5,7 @@ Tags: activity log, audit log, admin log, change tracking, security
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.1.1
+Stable tag: 1.1.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -98,6 +98,10 @@ Open **WhoChanged → Account** and activate the license key from your Freemius 
 2. Settings screen with retention, email alerts and role-based access controls (PRO).
 
 == Changelog ==
+
+= 1.1.2 =
+* Compliance: Moved configurable retention, email alerts, and role-based logging/viewer access implementations into the PRO-only module (excluded from this Free package). Free keeps fixed 30-day retention and administrator-only log viewing.
+* Updated: Bundled Chart.js library to 4.5.1.
 
 = 1.1.1 =
 * Housekeeping: PRO-only export (XLS/PDF) and bulk-purge implementations now live in a separate module that is excluded from this Free package entirely, instead of being shipped-but-locked. No behavior change for Free users.

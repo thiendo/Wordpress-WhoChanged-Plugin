@@ -64,7 +64,7 @@ class WhoChanged_Logger {
 		$resolved_user_id   = absint( $user_id );
 		$group_id           = $this->get_active_group_id( $resolved_user_id, (string) $normalized['type'] );
 
-		if ( ! $this->pro_should_log_user( $resolved_user_id ) ) {
+		if ( ! $this->should_log_user( $resolved_user_id ) ) {
 			return;
 		}
 
@@ -87,8 +87,7 @@ class WhoChanged_Logger {
 			return;
 		}
 
-		$created_at_gmt    = current_time( 'mysql', 1 );
-		$should_send_email = $this->pro_should_send_email( $normalized );
+		$created_at_gmt = current_time( 'mysql', 1 );
 
 		$wpdb->insert(
 			$table_name,
@@ -107,207 +106,42 @@ class WhoChanged_Logger {
 			array( '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' )
 		);
 
-		if ( $should_send_email ) {
-			$this->send_email_alert( $normalized, $resolved_user_id, $created_at_gmt );
-		}
+		/**
+		 * Fires after a WhoChanged activity log row is inserted.
+		 *
+		 * Premium packages may listen for email alerts; the Free package has
+		 * no listeners for this action.
+		 *
+		 * @param array<string, mixed> $normalized Normalized event.
+		 * @param int                  $resolved_user_id User id.
+		 * @param string               $created_at_gmt Created at (mysql, GMT).
+		 */
+		do_action( 'whochanged_log_inserted', $normalized, $resolved_user_id, $created_at_gmt );
 	}
 
 	/**
-	 * PRO: decide whether to log this event based on allowed user roles.
+	 * Decide whether to log this event for the given user.
+	 *
+	 * Free behavior: skip system events when disabled; log all real users.
+	 * Premium packages may further restrict roles via the
+	 * `whochanged_should_log_user` filter.
 	 *
 	 * @param int $user_id Resolved user id (0 = system).
 	 * @return bool
 	 */
-	private function pro_should_log_user( $user_id ) {
-		$pro = $this->pro_get_settings();
-
+	private function should_log_user( $user_id ) {
 		$user_id = absint( $user_id );
 		if ( 0 === $user_id ) {
-			return ! empty( $pro['include_system_logs'] );
+			return 1 === (int) get_option( 'whochanged_pro_include_system_logs', 1 );
 		}
 
-		if ( ! WhoChanged_Pro::ships_premium_modules() || ! WhoChanged_Pro::is_active() ) {
-			// Role-based logging restriction is a PRO feature; log everyone on Free
-			// (also true when this package doesn't ship the premium module code).
-			return true;
-		}
-
-		$allowed_roles = isset( $pro['allowed_roles'] ) && is_array( $pro['allowed_roles'] ) ? $pro['allowed_roles'] : array();
-		if ( empty( $allowed_roles ) ) {
-			// Empty means "all roles allowed".
-			return true;
-		}
-
-		$user = get_userdata( $user_id );
-		if ( ! $user || ! isset( $user->roles ) || ! is_array( $user->roles ) ) {
-			return false;
-		}
-
-		return ! empty( array_intersect( $user->roles, $allowed_roles ) );
-	}
-
-	/**
-	 * PRO: return email key for important events.
-	 *
-	 * @param array<string, mixed> $normalized Normalized event.
-	 * @return string One of: theme_changed, installed_plugin, admin_role_changed.
-	 */
-	private function pro_get_important_email_key( array $normalized ) {
-		$type = isset( $normalized['type'] ) ? sanitize_key( (string) $normalized['type'] ) : '';
-
-		if ( 'theme_changed' === $type ) {
-			return 'theme_changed';
-		}
-
-		if ( 'installed_plugin' === $type ) {
-			return 'installed_plugin';
-		}
-
-		if ( 'admin_role_changed' === $type ) {
-			return 'admin_role_changed';
-		}
-
-		if ( 'option_updated' === $type ) {
-			$meta = isset( $normalized['meta'] ) && is_array( $normalized['meta'] ) ? $normalized['meta'] : array();
-			$opt  = isset( $meta['option'] ) ? sanitize_text_field( (string) $meta['option'] ) : '';
-			if ( 'default_role' === $opt ) {
-				return 'admin_role_changed';
-			}
-		}
-
-		return '';
-	}
-
-	/**
-	 * PRO: decide whether to send an email for this event.
-	 *
-	 * @param array<string, mixed> $normalized Normalized event.
-	 * @return bool
-	 */
-	private function pro_should_send_email( array $normalized ) {
-		if ( ! WhoChanged_Pro::ships_premium_modules() || ! WhoChanged_Pro::is_active() ) {
-			return false;
-		}
-
-		$pro = $this->pro_get_settings();
-		if ( empty( $pro['email_enabled'] ) ) {
-			return false;
-		}
-
-		$key = $this->pro_get_important_email_key( $normalized );
-		if ( '' === $key ) {
-			return false;
-		}
-
-		$allowed = isset( $pro['email_events'] ) && is_array( $pro['email_events'] ) ? $pro['email_events'] : array();
-		if ( empty( $allowed ) ) {
-			return false;
-		}
-
-		return in_array( $key, $allowed, true );
-	}
-
-	/**
-	 * PRO: send email alert for important events.
-	 *
-	 * @param array<string, mixed> $normalized Normalized event.
-	 * @param int                  $user_id User id.
-	 * @param string               $created_at_gmt Created at (mysql, GMT).
-	 * @return void
-	 */
-	private function send_email_alert( array $normalized, $user_id, $created_at_gmt ) {
-		$pro = $this->pro_get_settings();
-		$to  = isset( $pro['email_recipient'] ) ? (string) $pro['email_recipient'] : '';
-		if ( '' === $to ) {
-			return;
-		}
-
-		$actor      = $user_id ? get_user_by( 'id', (int) $user_id ) : false;
-		$actor_name = $actor ? (string) $actor->display_name : __( 'System', 'whochanged' );
-
-		$mapped = class_exists( 'WhoChanged_Mapper' ) ? WhoChanged_Mapper::map( $normalized ) : array();
-		$title  = isset( $mapped['title'] ) ? (string) $mapped['title'] : ( isset( $normalized['label'] ) ? (string) $normalized['label'] : '' );
-		$desc   = isset( $mapped['description'] ) ? (string) $mapped['description'] : '';
-		$lines  = isset( $mapped['lines'] ) && is_array( $mapped['lines'] ) ? $mapped['lines'] : array();
-
-		$details_text = '';
-		if ( ! empty( $lines ) ) {
-			$parts = array();
-			foreach ( $lines as $line ) {
-				$label   = isset( $line['label'] ) ? (string) $line['label'] : '';
-				$from    = isset( $line['from'] ) ? (string) $line['from'] : '';
-				$to_v    = isset( $line['to'] ) ? (string) $line['to'] : '';
-				$parts[] = trim( $label ) . ': ' . trim( $from ) . ' -> ' . trim( $to_v );
-			}
-			$details_text = implode( '; ', array_filter( $parts ) );
-		}
-
-		$event_key = $this->pro_get_important_email_key( $normalized );
-		$subject   = sprintf(
-			/* translators: %s: event key */
-			__( 'WhoChanged PRO alert: %s', 'whochanged' ),
-			$event_key ? $event_key : (string) $title
-		);
-
-		$body_lines = array(
-			sprintf(
-				/* translators: %s: display name of the user who triggered the event. */
-				__( 'Actor: %s', 'whochanged' ),
-				$actor_name
-			),
-			sprintf(
-				/* translators: %s: event date/time in GMT. */
-				__( 'Time (GMT): %s', 'whochanged' ),
-				(string) $created_at_gmt
-			),
-			'',
-			sprintf(
-				/* translators: %s: event title. */
-				__( 'Event: %s', 'whochanged' ),
-				wp_strip_all_tags( $title )
-			),
-		);
-		if ( '' !== trim( $desc ) ) {
-			$body_lines[] = sprintf(
-				/* translators: %s: event description. */
-				__( 'Description: %s', 'whochanged' ),
-				wp_strip_all_tags( $desc )
-			);
-		}
-		if ( '' !== trim( $details_text ) ) {
-			$body_lines[] = sprintf(
-				/* translators: %s: list of before/after change details. */
-				__( 'Details: %s', 'whochanged' ),
-				wp_strip_all_tags( $details_text )
-			);
-		}
-
-		$body = implode( "\n", $body_lines );
-
-		$headers = array( 'Content-Type: text/plain; charset=UTF-8' );
-		wp_mail( $to, $subject, $body, $headers );
-	}
-
-	/**
-	 * PRO: read options with caching.
-	 *
-	 * @return array<string, mixed>
-	 */
-	private function pro_get_settings() {
-		static $cache = null;
-		if ( null !== $cache ) {
-			return $cache;
-		}
-
-		$cache = array(
-			'include_system_logs' => (int) get_option( 'whochanged_pro_include_system_logs', 1 ),
-			'allowed_roles'       => get_option( 'whochanged_pro_allowed_roles', array() ),
-			'email_enabled'       => (int) get_option( 'whochanged_pro_email_enabled', 0 ),
-			'email_events'        => get_option( 'whochanged_pro_email_events', array() ),
-			'email_recipient'     => get_option( 'whochanged_pro_email_recipient', (string) get_option( 'admin_email' ) ),
-		);
-
-		return $cache;
+		/**
+		 * Filters whether a user event should be logged.
+		 *
+		 * @param bool $should_log Whether to log.
+		 * @param int  $user_id User id.
+		 */
+		return (bool) apply_filters( 'whochanged_should_log_user', true, $user_id );
 	}
 
 	/**

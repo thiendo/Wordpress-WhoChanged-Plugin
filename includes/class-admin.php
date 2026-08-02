@@ -203,7 +203,7 @@ class WhoChanged_Admin {
 				'whochanged-chartjs',
 				WHOCHANGED_PLUGIN_URL . 'assets/js/vendor/chart.umd.min.js',
 				array(),
-				'4.5.0',
+				'4.5.1',
 				true
 			);
 			wp_enqueue_script(
@@ -701,171 +701,39 @@ class WhoChanged_Admin {
 			wp_die( esc_html__( 'You do not have permission to access this page.', 'whochanged' ) );
 		}
 
-		$pro_notice      = '';
-		$pro_notice_type = 'success';
-		$nonce           = isset( $_POST['whochanged_pro_nonce'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['whochanged_pro_nonce'] ) ) : '';
+		$notice = array(
+			'message' => '',
+			'type'    => 'success',
+		);
 
-		if ( isset( $_POST['whochanged_pro_send_test'] ) && '1' === sanitize_text_field( wp_unslash( (string) $_POST['whochanged_pro_send_test'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- nonce is verified below before any state change.
-			if ( wp_verify_nonce( $nonce, 'whochanged_pro_settings' ) ) {
-				$pro_email_recipient = isset( $_POST['whochanged_pro_email_recipient'] )
-					? sanitize_email( wp_unslash( (string) $_POST['whochanged_pro_email_recipient'] ) )
-					: '';
-				if ( '' === $pro_email_recipient ) {
-					$pro_email_recipient = (string) get_option( 'whochanged_pro_email_recipient', (string) get_option( 'admin_email' ) );
-				}
-				if ( '' === $pro_email_recipient || ! is_email( $pro_email_recipient ) ) {
-					$pro_notice      = esc_html__( 'Test alert failed: invalid recipient email.', 'whochanged' );
-					$pro_notice_type = 'error';
-				} else {
-					$sent = $this->send_test_alert_email( $pro_email_recipient );
-					if ( $sent ) {
-						$pro_notice = sprintf(
-							/* translators: %s: recipient email */
-							esc_html__( 'Test alert sent to %s.', 'whochanged' ),
-							$pro_email_recipient
-						);
-					} else {
-						$pro_notice      = esc_html__( 'Test alert could not be sent. Please check your mail server/SMTP settings.', 'whochanged' );
-						$pro_notice_type = 'error';
-					}
-				}
-			} else {
-				$pro_notice      = esc_html__( 'Invalid PRO settings request.', 'whochanged' );
-				$pro_notice_type = 'error';
-			}
-		} elseif ( isset( $_POST['whochanged_pro_license_activate'] ) && '1' === sanitize_text_field( wp_unslash( (string) $_POST['whochanged_pro_license_activate'] ) ) ) {
-			if ( ! WhoChanged_Pro::is_using_legacy_license() ) {
-				// Freemius is configured; license activation goes through the Freemius
-				// account/checkout UI instead, so this legacy POST action is disabled.
-				$pro_notice      = esc_html__( 'Please manage your license from the account panel above.', 'whochanged' );
-				$pro_notice_type = 'error';
-			} elseif ( wp_verify_nonce( $nonce, 'whochanged_pro_settings' ) ) {
-				$license_candidate = isset( $_POST['whochanged_pro_license_key'] )
-					? sanitize_text_field( wp_unslash( (string) $_POST['whochanged_pro_license_key'] ) )
-					: '';
-				if ( '' === $license_candidate ) {
-					$pro_notice      = esc_html__( 'License activation failed: license key is empty.', 'whochanged' );
-					$pro_notice_type = 'error';
-				} else {
-					update_option( 'whochanged_pro_license_key', $license_candidate, false );
-					update_option( 'whochanged_pro_license_active', 1, false );
-					update_option( 'whochanged_pro_license_activated_at', gmdate( 'Y-m-d H:i:s' ), false );
-					$pro_notice      = esc_html__( 'License activated. PRO is now active.', 'whochanged' );
-					$pro_notice_type = 'success';
-				}
-			} else {
-				$pro_notice      = esc_html__( 'Invalid PRO settings request.', 'whochanged' );
-				$pro_notice_type = 'error';
-			}
-		} elseif ( isset( $_POST['whochanged_pro_purge_all'] ) && '1' === sanitize_text_field( wp_unslash( (string) $_POST['whochanged_pro_purge_all'] ) ) ) {
-			if ( ! WhoChanged_Pro::ships_premium_modules() ) {
-				$pro_notice      = esc_html__( 'Available in WhoChanged PRO.', 'whochanged' );
-				$pro_notice_type = 'error';
-			} elseif ( ! WhoChanged_Pro::is_active() ) {
-				$pro_notice      = esc_html__( 'Purging all activity logs is a PRO feature.', 'whochanged' );
-				$pro_notice_type = 'error';
-			} elseif ( wp_verify_nonce( $nonce, 'whochanged_pro_settings' ) ) {
-				$confirm_checkbox = isset( $_POST['whochanged_pro_purge_checkbox'] ) ? '1' : '0';
-				$confirm_text     = isset( $_POST['whochanged_pro_purge_confirm_text'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['whochanged_pro_purge_confirm_text'] ) ) : '';
-				$required_text    = 'PURGE ALL ACTIVITY LOGS';
-				if ( '1' !== $confirm_checkbox || $required_text !== $confirm_text ) {
-					$pro_notice      = esc_html__( 'Purge cancelled: confirmation is invalid.', 'whochanged' );
-					$pro_notice_type = 'error';
-				} else {
-					$result = WhoChanged_Pro_Purge::purge_all_activity_logs( get_current_user_id() );
-					if ( isset( $result['ok'] ) && $result['ok'] ) {
-						$pro_notice = sprintf(
-							/* translators: %d: number of deleted logs */
-							esc_html__( 'Purge complete. Deleted %d logs.', 'whochanged' ),
-							isset( $result['deleted'] ) ? (int) $result['deleted'] : 0
-						);
-					} else {
-						$pro_notice      = esc_html__( 'Purge failed. Please try again.', 'whochanged' );
-						$pro_notice_type = 'error';
-					}
-				}
-			} else {
-				$pro_notice      = esc_html__( 'Invalid PRO settings request.', 'whochanged' );
-				$pro_notice_type = 'error';
-			}
-		} elseif ( isset( $_POST['whochanged_pro_save'] ) && '1' === sanitize_text_field( wp_unslash( (string) $_POST['whochanged_pro_save'] ) ) ) {
-			if ( wp_verify_nonce( $nonce, 'whochanged_pro_settings' ) ) {
-				$pro_retention  = isset( $_POST['whochanged_pro_retention_days'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['whochanged_pro_retention_days'] ) ) : 'unlimited';
-				$allowed_values = array( 'unlimited', '7', '30', '60', '90' );
-				if ( ! in_array( $pro_retention, $allowed_values, true ) ) {
-					$pro_retention = 'unlimited';
-				}
-
-				$pro_email_enabled        = isset( $_POST['whochanged_pro_email_enabled'] ) ? 1 : 0;
-				$pro_include_system_logs  = isset( $_POST['whochanged_pro_include_system_logs'] ) ? 1 : 0;
+		// Free settings save (system logs + uninstall preference).
+		if ( isset( $_POST['whochanged_settings_save'] ) && '1' === sanitize_text_field( wp_unslash( (string) $_POST['whochanged_settings_save'] ) ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- verified below.
+			$nonce = isset( $_POST['whochanged_settings_nonce'] ) ? sanitize_text_field( wp_unslash( (string) $_POST['whochanged_settings_nonce'] ) ) : '';
+			if ( wp_verify_nonce( $nonce, 'whochanged_settings' ) ) {
+				$include_system_logs      = isset( $_POST['whochanged_pro_include_system_logs'] ) ? 1 : 0;
 				$delete_data_on_uninstall = isset( $_POST['whochanged_delete_data_on_uninstall'] ) ? 1 : 0;
-
-				$pro_email_events = array();
-				if ( isset( $_POST['whochanged_pro_email_events'] ) && is_array( $_POST['whochanged_pro_email_events'] ) ) {
-					$pro_email_events = array_map(
-						'sanitize_key',
-						wp_unslash( (array) $_POST['whochanged_pro_email_events'] )
-					);
-				}
-
-				$valid_email_events = array( 'theme_changed', 'installed_plugin', 'admin_role_changed' );
-				$pro_email_events   = array_values( array_intersect( $pro_email_events, $valid_email_events ) );
-
-				$pro_email_recipient = isset( $_POST['whochanged_pro_email_recipient'] )
-					? sanitize_email( wp_unslash( (string) $_POST['whochanged_pro_email_recipient'] ) )
-					: '';
-				if ( '' === $pro_email_recipient ) {
-					$pro_email_recipient = (string) get_option( 'admin_email' );
-				}
-
-				$pro_license_key = get_option( 'whochanged_pro_license_key', '' );
-				if ( isset( $_POST['whochanged_pro_license_key'] ) ) {
-					$pro_license_key = sanitize_text_field( wp_unslash( (string) $_POST['whochanged_pro_license_key'] ) );
-				}
-
-				$pro_allowed_roles = array();
-				if ( isset( $_POST['whochanged_pro_allowed_roles'] ) && is_array( $_POST['whochanged_pro_allowed_roles'] ) ) {
-					$pro_allowed_roles = array_map(
-						'sanitize_key',
-						wp_unslash( (array) $_POST['whochanged_pro_allowed_roles'] )
-					);
-				}
-
-				$pro_viewer_roles = array();
-				if ( isset( $_POST['whochanged_pro_viewer_roles'] ) && is_array( $_POST['whochanged_pro_viewer_roles'] ) ) {
-					$pro_viewer_roles = array_map(
-						'sanitize_key',
-						wp_unslash( (array) $_POST['whochanged_pro_viewer_roles'] )
-					);
-				}
-
-				update_option( 'whochanged_pro_retention_days', $pro_retention, false );
-				update_option( 'whochanged_pro_email_enabled', $pro_email_enabled, false );
-				update_option( 'whochanged_pro_email_events', $pro_email_events, false );
-				update_option( 'whochanged_pro_email_recipient', $pro_email_recipient, false );
-				update_option( 'whochanged_pro_license_key', $pro_license_key, false );
-				update_option( 'whochanged_pro_allowed_roles', $pro_allowed_roles, false );
-				update_option( 'whochanged_pro_viewer_roles', $pro_viewer_roles, false );
-				update_option( 'whochanged_pro_include_system_logs', $pro_include_system_logs, false );
+				update_option( 'whochanged_pro_include_system_logs', $include_system_logs, false );
 				update_option( 'whochanged_delete_data_on_uninstall', $delete_data_on_uninstall, false );
-
-				$pro_notice      = esc_html__( 'PRO settings saved.', 'whochanged' );
-				$pro_notice_type = 'success';
+				$notice = array(
+					'message' => esc_html__( 'Settings saved.', 'whochanged' ),
+					'type'    => 'success',
+				);
 			} else {
-				$pro_notice      = esc_html__( 'Invalid PRO settings request.', 'whochanged' );
-				$pro_notice_type = 'error';
+				$notice = array(
+					'message' => esc_html__( 'Invalid settings request.', 'whochanged' ),
+					'type'    => 'error',
+				);
 			}
 		}
 
-		$pro_retention_days       = get_option( 'whochanged_pro_retention_days', 'unlimited' );
-		$pro_email_enabled        = (int) get_option( 'whochanged_pro_email_enabled', 0 );
-		$pro_email_events         = get_option( 'whochanged_pro_email_events', array() );
-		$pro_email_recipient      = get_option( 'whochanged_pro_email_recipient', (string) get_option( 'admin_email' ) );
-		$pro_license_key          = get_option( 'whochanged_pro_license_key', '' );
-		$pro_license_active       = (int) get_option( 'whochanged_pro_license_active', 0 );
-		$pro_allowed_roles        = get_option( 'whochanged_pro_allowed_roles', array() );
-		$pro_viewer_roles         = get_option( 'whochanged_pro_viewer_roles', array( 'administrator' ) );
-		$pro_include_system_logs  = (int) get_option( 'whochanged_pro_include_system_logs', 1 );
+		/**
+		 * Lets premium packages handle PRO-only settings POST actions.
+		 *
+		 * @param array{message:string,type:string} $notice Notice payload.
+		 */
+		$notice = apply_filters( 'whochanged_settings_notice', $notice );
+
+		$include_system_logs      = (int) get_option( 'whochanged_pro_include_system_logs', 1 );
 		$delete_data_on_uninstall = (int) get_option( 'whochanged_delete_data_on_uninstall', 0 );
 		$whochanged_ships_pro     = WhoChanged_Pro::ships_premium_modules();
 		$whochanged_pro_active    = $whochanged_ships_pro && WhoChanged_Pro::is_active();
@@ -875,6 +743,8 @@ class WhoChanged_Admin {
 		$update_transient         = get_site_transient( 'update_plugins' );
 		$has_whochanged_update    = is_object( $update_transient ) && isset( $update_transient->response ) && is_array( $update_transient->response ) && isset( $update_transient->response[ $whochanged_plugin_file ] );
 		$whochanged_update_url    = '';
+		$pro_license_key          = get_option( 'whochanged_pro_license_key', '' );
+		$pro_license_active       = (int) get_option( 'whochanged_pro_license_active', 0 );
 		if ( $has_whochanged_update ) {
 			$whochanged_update_url = wp_nonce_url(
 				self_admin_url( 'update.php?action=upgrade-plugin&plugin=' . rawurlencode( $whochanged_plugin_file ) ),
@@ -892,14 +762,7 @@ class WhoChanged_Admin {
 				?>
 			</p>
 
-			<?php if ( $whochanged_ships_pro && ! $whochanged_pro_active ) : ?>
-				<div class="notice notice-warning whochanged-pro-upsell">
-					<p>
-						<strong><?php echo esc_html__( "You're on the Free plan.", 'whochanged' ); ?></strong>
-						<?php echo esc_html__( 'Retention control, email alerts, extended viewer/logging roles, and bulk log purge are PRO features. Settings below are saved but only take effect once PRO is active.', 'whochanged' ); ?>
-					</p>
-				</div>
-			<?php elseif ( ! $whochanged_ships_pro ) : ?>
+			<?php if ( ! $whochanged_ships_pro ) : ?>
 				<div class="notice notice-warning whochanged-pro-upsell">
 					<p>
 						<strong><?php echo esc_html__( "You're on the Free plan.", 'whochanged' ); ?></strong>
@@ -907,19 +770,26 @@ class WhoChanged_Admin {
 						<a href="<?php echo esc_url( WhoChanged_Pro::get_upgrade_url() ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html__( 'Learn more', 'whochanged' ); ?></a>
 					</p>
 				</div>
+			<?php elseif ( ! $whochanged_pro_active ) : ?>
+				<div class="notice notice-warning whochanged-pro-upsell">
+					<p>
+						<strong><?php echo esc_html__( "You're on the Free plan.", 'whochanged' ); ?></strong>
+						<?php echo esc_html__( 'Activate a PRO license to unlock retention controls, email alerts, extended roles, exports, and bulk purge.', 'whochanged' ); ?>
+					</p>
+				</div>
 			<?php endif; ?>
 
 			<div class="whochanged-pro-settings-panel">
-				<h2><?php echo esc_html__( 'PRO Settings', 'whochanged' ); ?></h2>
-				<?php if ( '' !== (string) $pro_notice ) : ?>
-					<div class="notice <?php echo 'error' === $pro_notice_type ? 'notice-error' : 'notice-success'; ?> is-dismissible">
-						<p><?php echo esc_html( $pro_notice ); ?></p>
+				<h2><?php echo esc_html__( 'Settings', 'whochanged' ); ?></h2>
+				<?php if ( '' !== (string) $notice['message'] ) : ?>
+					<div class="notice <?php echo 'error' === $notice['type'] ? 'notice-error' : 'notice-success'; ?> is-dismissible">
+						<p><?php echo esc_html( $notice['message'] ); ?></p>
 					</div>
 				<?php endif; ?>
 
 				<form method="post" action="" class="whochanged-pro-settings-form">
-					<input type="hidden" name="whochanged_pro_save" value="1">
-					<input type="hidden" name="whochanged_pro_nonce" value="<?php echo esc_attr( wp_create_nonce( 'whochanged_pro_settings' ) ); ?>">
+					<input type="hidden" name="whochanged_settings_save" value="1">
+					<input type="hidden" name="whochanged_settings_nonce" value="<?php echo esc_attr( wp_create_nonce( 'whochanged_settings' ) ); ?>">
 
 					<div class="whochanged-settings-grid">
 						<section class="whochanged-settings-card whochanged-settings-card--wide whochanged-settings-card--updates">
@@ -932,15 +802,7 @@ class WhoChanged_Admin {
 										<div class="whochanged-license-active-pill"><?php echo esc_html__( 'PRO Active', 'whochanged' ); ?></div>
 									<?php else : ?>
 										<div class="whochanged-license-inline">
-											<input
-												type="text"
-												id="whochanged-pro-license-key"
-												name="whochanged_pro_license_key"
-												value="<?php echo esc_attr( (string) $pro_license_key ); ?>"
-												class="regular-text"
-												autocomplete="off"
-												placeholder="<?php echo esc_attr__( 'Enter your license key', 'whochanged' ); ?>"
-											>
+											<input type="text" id="whochanged-pro-license-key" name="whochanged_pro_license_key" value="<?php echo esc_attr( (string) $pro_license_key ); ?>" class="regular-text" autocomplete="off" placeholder="<?php echo esc_attr__( 'Enter your license key', 'whochanged' ); ?>">
 											<button type="submit" class="button button-primary" name="whochanged_pro_license_activate" value="1"><?php echo esc_html__( 'Active', 'whochanged' ); ?></button>
 										</div>
 									<?php endif; ?>
@@ -970,168 +832,14 @@ class WhoChanged_Admin {
 							<?php endif; ?>
 						</section>
 
-						<?php if ( $whochanged_ships_pro ) : ?>
-						<section class="whochanged-settings-card">
-							<h3>
-								<?php echo esc_html__( 'Retention', 'whochanged' ); ?>
-								<?php
-								if ( ! $whochanged_pro_active ) :
-									?>
-									<span class="whochanged-pro-badge"><?php esc_html_e( 'PRO', 'whochanged' ); ?></span><?php endif; ?>
-							</h3>
-							<?php if ( $whochanged_pro_active ) : ?>
-								<p class="description"><?php echo esc_html__( 'Choose how long activity logs are kept before cleanup.', 'whochanged' ); ?></p>
-								<div class="whochanged-settings-field">
-									<label for="whochanged-pro-retention"><?php echo esc_html__( 'Keep logs for', 'whochanged' ); ?></label>
-									<select id="whochanged-pro-retention" name="whochanged_pro_retention_days">
-										<option value="unlimited" <?php selected( $pro_retention_days, 'unlimited' ); ?>><?php echo esc_html__( 'Unlimited', 'whochanged' ); ?></option>
-										<option value="7" <?php selected( (string) $pro_retention_days, '7' ); ?>><?php echo esc_html__( '7 days', 'whochanged' ); ?></option>
-										<option value="30" <?php selected( (string) $pro_retention_days, '30' ); ?>><?php echo esc_html__( '30 days', 'whochanged' ); ?></option>
-										<option value="60" <?php selected( (string) $pro_retention_days, '60' ); ?>><?php echo esc_html__( '60 days', 'whochanged' ); ?></option>
-										<option value="90" <?php selected( (string) $pro_retention_days, '90' ); ?>><?php echo esc_html__( '90 days', 'whochanged' ); ?></option>
-									</select>
-								</div>
-							<?php else : ?>
-								<p class="description">
-									<?php
-									printf(
-										/* translators: %d: number of days logs are kept on the Free plan. */
-										esc_html__( 'Free plan logs are automatically cleaned up after %d days. Upgrade to PRO to keep logs longer or forever.', 'whochanged' ),
-										absint( defined( 'WHOCHANGED_FREE_RETENTION_DAYS' ) ? WHOCHANGED_FREE_RETENTION_DAYS : 30 )
-									);
-									?>
-								</p>
-								<div class="whochanged-settings-field">
-									<label for="whochanged-pro-retention"><?php echo esc_html__( 'Keep logs for', 'whochanged' ); ?></label>
-									<select id="whochanged-pro-retention" disabled>
-										<option><?php echo esc_html__( '30 days (Free plan)', 'whochanged' ); ?></option>
-									</select>
-								</div>
-							<?php endif; ?>
-						</section>
+						<?php
+						/**
+						 * Renders premium settings sections when includes/pro/ is present.
+						 */
+						do_action( 'whochanged_settings_pro_sections' );
+						?>
 
-						<section class="whochanged-settings-card">
-							<h3>
-								<?php echo esc_html__( 'Email Alerts', 'whochanged' ); ?>
-								<?php
-								if ( ! $whochanged_pro_active ) :
-									?>
-									<span class="whochanged-pro-badge"><?php esc_html_e( 'PRO', 'whochanged' ); ?></span><?php endif; ?>
-							</h3>
-							<p class="description"><?php echo esc_html__( 'Send notifications when important events are detected.', 'whochanged' ); ?></p>
-
-							<label class="whochanged-check-row">
-								<input type="checkbox" name="whochanged_pro_email_enabled" value="1" <?php checked( 1, $pro_email_enabled ); ?> <?php disabled( ! $whochanged_pro_active ); ?>>
-								<span><?php echo esc_html__( 'Enable email notifications', 'whochanged' ); ?></span>
-							</label>
-
-							<div class="whochanged-settings-field">
-								<label><?php echo esc_html__( 'Notify for', 'whochanged' ); ?></label>
-								<div class="whochanged-check-grid">
-									<label class="whochanged-check-row"><input type="checkbox" name="whochanged_pro_email_events[]" value="theme_changed" <?php checked( in_array( 'theme_changed', (array) $pro_email_events, true ), true ); ?> <?php disabled( ! $whochanged_pro_active ); ?>> <span><?php echo esc_html__( 'Theme switched', 'whochanged' ); ?></span></label>
-									<label class="whochanged-check-row"><input type="checkbox" name="whochanged_pro_email_events[]" value="installed_plugin" <?php checked( in_array( 'installed_plugin', (array) $pro_email_events, true ), true ); ?> <?php disabled( ! $whochanged_pro_active ); ?>> <span><?php echo esc_html__( 'Plugin installed', 'whochanged' ); ?></span></label>
-									<label class="whochanged-check-row"><input type="checkbox" name="whochanged_pro_email_events[]" value="admin_role_changed" <?php checked( in_array( 'admin_role_changed', (array) $pro_email_events, true ), true ); ?> <?php disabled( ! $whochanged_pro_active ); ?>> <span><?php echo esc_html__( 'Admin role changed', 'whochanged' ); ?></span></label>
-								</div>
-							</div>
-
-							<div class="whochanged-settings-field">
-								<label for="whochanged-pro-email-recipient"><?php echo esc_html__( 'Recipient email', 'whochanged' ); ?></label>
-								<input
-									type="email"
-									id="whochanged-pro-email-recipient"
-									name="whochanged_pro_email_recipient"
-									value="<?php echo esc_attr( (string) $pro_email_recipient ); ?>"
-									class="regular-text"
-									placeholder="<?php echo esc_attr__( 'admin@yourdomain.com', 'whochanged' ); ?>"
-									<?php disabled( ! $whochanged_pro_active ); ?>
-								>
-								<p class="description">
-									<button type="submit" class="button button-secondary" name="whochanged_pro_send_test" value="1" <?php disabled( ! $whochanged_pro_active ); ?>>
-										<?php echo esc_html__( 'Send test alert now', 'whochanged' ); ?>
-									</button>
-									<?php if ( ! $whochanged_pro_active ) : ?>
-										<span class="whochanged-pro-badge whochanged-pro-badge--inline"><?php esc_html_e( 'PRO', 'whochanged' ); ?></span>
-									<?php endif; ?>
-								</p>
-							</div>
-						</section>
-
-						<section class="whochanged-settings-card">
-							<h3>
-								<?php echo esc_html__( 'Logging Scope', 'whochanged' ); ?>
-								<?php
-								if ( ! $whochanged_pro_active ) :
-									?>
-									<span class="whochanged-pro-badge"><?php esc_html_e( 'PRO', 'whochanged' ); ?></span><?php endif; ?>
-							</h3>
-							<p class="description">
-								<?php
-								echo $whochanged_pro_active
-									? esc_html__( 'Control which roles are included in activity logging.', 'whochanged' )
-									: esc_html__( 'All users are logged on the Free plan. Upgrade to PRO to log only specific roles.', 'whochanged' );
-								?>
-							</p>
-
-							<div class="whochanged-settings-field">
-								<label><?php echo esc_html__( 'Log only these user roles', 'whochanged' ); ?></label>
-								<p class="description"><?php echo esc_html__( 'Leave empty to log all users.', 'whochanged' ); ?></p>
-								<div class="whochanged-check-grid">
-									<?php
-									$editable_roles = get_editable_roles();
-									if ( empty( $editable_roles ) ) :
-										echo '<span>' . esc_html__( 'No roles found.', 'whochanged' ) . '</span>';
-									else :
-										foreach ( $editable_roles as $role_slug => $role_info ) :
-											$checked = in_array( (string) $role_slug, (array) $pro_allowed_roles, true );
-											?>
-											<label class="whochanged-check-row">
-												<input type="checkbox" name="whochanged_pro_allowed_roles[]" value="<?php echo esc_attr( (string) $role_slug ); ?>" <?php checked( $checked ); ?> <?php disabled( ! $whochanged_pro_active ); ?>>
-												<span><?php echo esc_html( (string) $role_info['name'] ); ?></span>
-											</label>
-										<?php endforeach; ?>
-									<?php endif; ?>
-								</div>
-							</div>
-
-						</section>
-
-						<section class="whochanged-settings-card">
-							<h3>
-								<?php echo esc_html__( 'Viewer Access', 'whochanged' ); ?>
-								<?php
-								if ( ! $whochanged_pro_active ) :
-									?>
-									<span class="whochanged-pro-badge"><?php esc_html_e( 'PRO', 'whochanged' ); ?></span><?php endif; ?>
-							</h3>
-							<p class="description">
-								<?php
-								echo $whochanged_pro_active
-									? esc_html__( 'Choose which roles can view WhoChanged activity and statistics.', 'whochanged' )
-									: esc_html__( 'Only Administrators can view logs on the Free plan. Upgrade to PRO to grant access to other roles.', 'whochanged' );
-								?>
-							</p>
-							<div class="whochanged-settings-field">
-								<label><?php echo esc_html__( 'Roles allowed to view logs', 'whochanged' ); ?></label>
-								<p class="description"><?php echo esc_html__( 'Administrators always have access for safety.', 'whochanged' ); ?></p>
-								<div class="whochanged-check-grid">
-									<?php
-									$editable_roles = get_editable_roles();
-									if ( empty( $editable_roles ) ) :
-										echo '<span>' . esc_html__( 'No roles found.', 'whochanged' ) . '</span>';
-									else :
-										foreach ( $editable_roles as $role_slug => $role_info ) :
-											$checked = in_array( (string) $role_slug, (array) $pro_viewer_roles, true );
-											?>
-											<label class="whochanged-check-row">
-												<input type="checkbox" name="whochanged_pro_viewer_roles[]" value="<?php echo esc_attr( (string) $role_slug ); ?>" <?php checked( $checked ); ?> <?php disabled( ! $whochanged_pro_active ); ?>>
-												<span><?php echo esc_html( (string) $role_info['name'] ); ?></span>
-											</label>
-										<?php endforeach; ?>
-									<?php endif; ?>
-								</div>
-							</div>
-						</section>
-						<?php else : ?>
+						<?php if ( ! $whochanged_ships_pro ) : ?>
 						<section class="whochanged-settings-card whochanged-settings-card--wide">
 							<h3>
 								<?php echo esc_html__( 'PRO features', 'whochanged' ); ?>
@@ -1156,7 +864,7 @@ class WhoChanged_Admin {
 							<h3><?php echo esc_html__( 'System Logs', 'whochanged' ); ?></h3>
 							<p class="description"><?php echo esc_html__( 'Choose whether background/system events are included.', 'whochanged' ); ?></p>
 							<label class="whochanged-check-row">
-								<input type="checkbox" name="whochanged_pro_include_system_logs" value="1" <?php checked( 1, $pro_include_system_logs ); ?>>
+								<input type="checkbox" name="whochanged_pro_include_system_logs" value="1" <?php checked( 1, $include_system_logs ); ?>>
 								<span><?php echo esc_html__( 'Include system logs (background events)', 'whochanged' ); ?></span>
 							</label>
 						</section>
@@ -1171,30 +879,15 @@ class WhoChanged_Admin {
 									<input type="checkbox" name="whochanged_delete_data_on_uninstall" value="1" <?php checked( 1, $delete_data_on_uninstall ); ?>>
 									<span><?php echo esc_html__( 'Delete all WhoChanged data (logs and settings) when the plugin is deleted.', 'whochanged' ); ?></span>
 								</label>
-								<p class="description"><?php echo esc_html__( 'Applies when the plugin is removed via Plugins → Delete, not on simple deactivation. Saved together with the PRO settings below.', 'whochanged' ); ?></p>
+								<p class="description"><?php echo esc_html__( 'Applies when the plugin is removed via Plugins → Delete, not on simple deactivation.', 'whochanged' ); ?></p>
 							</div>
-							<?php if ( $whochanged_ships_pro ) : ?>
-								<p class="description"><?php echo esc_html__( 'Permanently delete all activity logs. This action cannot be undone.', 'whochanged' ); ?></p>
-								<div class="whochanged-settings-field">
-									<label class="whochanged-check-row">
-										<input type="checkbox" name="whochanged_pro_purge_checkbox" value="1">
-										<span><?php echo esc_html__( 'I understand this will permanently remove all logs.', 'whochanged' ); ?></span>
-									</label>
-								</div>
-								<div class="whochanged-settings-field">
-									<label for="whochanged-pro-purge-confirm"><?php echo esc_html__( 'Type to confirm', 'whochanged' ); ?>: <code>PURGE ALL ACTIVITY LOGS</code></label>
-									<input type="text" id="whochanged-pro-purge-confirm" name="whochanged_pro_purge_confirm_text" class="regular-text" autocomplete="off">
-								</div>
-								<p class="description">
-									<button type="submit" class="button button-secondary whochanged-button-danger" name="whochanged_pro_purge_all" value="1" <?php disabled( ! $whochanged_pro_active ); ?>>
-										<?php echo esc_html__( 'Purge All Activity Log', 'whochanged' ); ?>
-									</button>
-									<?php if ( ! $whochanged_pro_active ) : ?>
-										<span class="whochanged-pro-badge"><?php echo esc_html__( 'PRO', 'whochanged' ); ?></span>
-									<?php endif; ?>
-								</p>
-								<div class="whochanged-purge-feedback" data-whochanged-purge-feedback aria-live="polite"></div>
-							<?php else : ?>
+							<?php
+							/**
+							 * Renders premium danger-zone controls (e.g. purge) when includes/pro/ is present.
+							 */
+							do_action( 'whochanged_settings_danger_zone_pro' );
+							if ( ! $whochanged_ships_pro ) :
+								?>
 								<p class="description">
 									<?php echo esc_html__( 'Bulk-purging all activity logs is available in WhoChanged PRO.', 'whochanged' ); ?>
 									<a class="button button-secondary" href="<?php echo esc_url( WhoChanged_Pro::get_upgrade_url() ); ?>" target="_blank" rel="noopener noreferrer"><?php echo esc_html__( 'Get WhoChanged PRO', 'whochanged' ); ?></a>
@@ -1204,7 +897,7 @@ class WhoChanged_Admin {
 					</div>
 
 					<p class="submit">
-						<button type="submit" class="button button-primary"><?php echo esc_html__( 'Save PRO settings', 'whochanged' ); ?></button>
+						<button type="submit" class="button button-primary"><?php echo esc_html__( 'Save settings', 'whochanged' ); ?></button>
 					</p>
 				</form>
 			</div>
@@ -1212,11 +905,6 @@ class WhoChanged_Admin {
 		<?php
 	}
 
-	/**
-	 * Render statistics page (submenu).
-	 *
-	 * @return void
-	 */
 	public function render_statistics_page() {
 		if ( ! $this->current_user_can_view_logs() ) {
 			wp_die( esc_html__( 'You do not have permission to access this page.', 'whochanged' ) );
@@ -3222,73 +2910,24 @@ class WhoChanged_Admin {
 	}
 
 	/**
-	 * Send a demo PRO alert email.
-	 *
-	 * @param string $recipient Recipient email.
-	 * @return bool
-	 */
-	private function send_test_alert_email( $recipient ) {
-		$recipient = sanitize_email( (string) $recipient );
-		if ( '' === $recipient || ! is_email( $recipient ) ) {
-			return false;
-		}
-
-		$subject = __( 'WhoChanged PRO alert: test email', 'whochanged' );
-		$body    = implode(
-			"\n",
-			array(
-				__( 'This is a test alert from WhoChanged PRO settings.', 'whochanged' ),
-				sprintf(
-					/* translators: %s: site URL. */
-					__( 'Site: %s', 'whochanged' ),
-					home_url()
-				),
-				sprintf(
-					/* translators: %s: date/time in GMT. */
-					__( 'Sent at (GMT): %s', 'whochanged' ),
-					gmdate( 'Y-m-d H:i:s' )
-				),
-			)
-		);
-		$headers = array( 'Content-Type: text/plain; charset=UTF-8' );
-
-		return (bool) wp_mail( $recipient, $subject, $body, $headers );
-	}
-
-	/**
 	 * Determine whether current user can view WhoChanged logs pages.
 	 *
 	 * @return bool
 	 */
 	private function current_user_can_view_logs() {
-		// Admins (and higher) always retain access.
 		if ( current_user_can( 'manage_options' ) ) {
 			return true;
 		}
 
-		// Extending viewer access to non-admin roles is a PRO feature — and
-		// requires the local premium module code to even exist (Free package
-		// never ships includes/pro/), so Free always requires manage_options.
-		if ( ! WhoChanged_Pro::ships_premium_modules() || ! WhoChanged_Pro::is_active() ) {
-			return false;
-		}
-
-		$user = wp_get_current_user();
-		if ( ! $user || empty( $user->roles ) || ! is_array( $user->roles ) ) {
-			return false;
-		}
-
-		$viewer_roles = get_option( 'whochanged_pro_viewer_roles', array( 'administrator' ) );
-		if ( ! is_array( $viewer_roles ) ) {
-			return false;
-		}
-
-		$viewer_roles = array_values( array_filter( array_map( 'sanitize_key', $viewer_roles ) ) );
-		if ( empty( $viewer_roles ) ) {
-			return false;
-		}
-
-		return ! empty( array_intersect( $user->roles, $viewer_roles ) );
+		/**
+		 * Filters whether the current user can view WhoChanged logs.
+		 *
+		 * Free package: administrators only. Premium packages may grant
+		 * additional roles via includes/pro/.
+		 *
+		 * @param bool $can_view Whether the user can view logs.
+		 */
+		return (bool) apply_filters( 'whochanged_user_can_view_logs', false );
 	}
 
 	/**
