@@ -14,6 +14,7 @@ Know exactly who changed what in your WordPress admin — options, Customizer, p
 == Description ==
 
 **Plugin URL:** [https://douple.net/whochanged/](https://douple.net/whochanged/)
+**Support:** [support@douple.net](mailto:support@douple.net)
 **Get WhoChanged PRO:** [https://checkout.freemius.com/plugin/35452/plan/58744/](https://checkout.freemius.com/plugin/35452/plan/58744/)
 
 **WhoChanged** is a lightweight activity log for WordPress that quietly watches the admin area and records every meaningful change: who did it, what changed, and when. When something breaks after an update or a client swears "I didn't touch anything," WhoChanged gives you the answer in seconds instead of hours.
@@ -91,6 +92,10 @@ If you checkout from inside the same site's wp-admin, Freemius often activates t
 = I bought PRO but the plugin still shows Free =
 
 Open **WhoChanged → Account** and activate the license key from your Freemius purchase email. If the plan's site limit is full, deactivate the license on an unused site first, then activate on this one.
+
+= How do I contact support? =
+
+Email [support@douple.net](mailto:support@douple.net).
 
 == Screenshots ==
 
