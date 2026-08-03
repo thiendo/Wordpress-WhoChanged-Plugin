@@ -516,6 +516,64 @@ class WhoChanged_Logger {
 	 * @param string                 $to_ymd   End Y-m-d.
 	 * @return void
 	 */
+
+	/**
+	 * Finalize dynamic WHERE fragments so every query uses wpdb::prepare().
+	 *
+	 * Each clause must be a hard-coded SQL fragment that already contains
+	 * placeholders (%d / %s). Values belong only in $params — never interpolated
+	 * into the SQL string. A leading tautology keeps prepare() valid even when
+	 * no filters are active.
+	 *
+	 * @param array<int, string> $clauses Placeholder fragments.
+	 * @param array<int, mixed>  $params  Values matching those placeholders.
+	 * @return array{0: string, 1: array<int, mixed>}
+	 */
+	private function finalize_where( array $clauses, array $params ) {
+		array_unshift( $clauses, '1=%d' );
+		array_unshift( $params, 1 );
+
+		return array( implode( ' AND ', $clauses ), $params );
+	}
+
+	/**
+	 * Prepare a SQL statement with placeholders.
+	 *
+	 * @param string            $query SQL containing placeholders.
+	 * @param array<int, mixed> $args  Placeholder values.
+	 * @return string|null
+	 */
+	private function db_prepare( $query, array $args ) {
+		global $wpdb;
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $query is assembled from hard-coded fragments + placeholders; values are exclusively in $args.
+		return $wpdb->prepare( $query, $args );
+	}
+
+	/**
+	 * @param string            $query SQL containing placeholders.
+	 * @param array<int, mixed> $args  Placeholder values.
+	 * @return string|null
+	 */
+	private function db_get_var( $query, array $args ) {
+		global $wpdb;
+
+		return $wpdb->get_var( $this->db_prepare( $query, $args ) );
+	}
+
+	/**
+	 * @param string            $query SQL containing placeholders.
+	 * @param array<int, mixed> $args  Placeholder values.
+	 * @return array<int, array<string, mixed>>
+	 */
+	private function db_get_results( $query, array $args ) {
+		global $wpdb;
+
+		$rows = $wpdb->get_results( $this->db_prepare( $query, $args ), ARRAY_A );
+
+		return is_array( $rows ) ? $rows : array();
+	}
+
 	private function append_created_at_range_clauses( array &$clauses, array &$params, $from_ymd, $to_ymd ) {
 		$from_ymd = sanitize_text_field( (string) $from_ymd );
 		$to_ymd   = sanitize_text_field( (string) $to_ymd );
@@ -588,7 +646,8 @@ class WhoChanged_Logger {
 			$clauses[] = 'user_id = %d';
 			$params[]  = $sanitized_user_id;
 		} else {
-			$clauses[] = 'user_id > 0';
+			$clauses[] = 'user_id > %d';
+			$params[]  = 0;
 		}
 
 		if ( '' !== $sanitized_action_type ) {
@@ -611,16 +670,10 @@ class WhoChanged_Logger {
 			$this->append_created_at_range_clauses( $clauses, $params, $date_from_ymd, $date_to_ymd );
 		}
 
-		$where_sql = ! empty( $clauses ) ? implode( ' AND ', $clauses ) : '1=1';
+		list( $where_sql, $params ) = $this->finalize_where( $clauses, $params );
 
-		$count_sql = "SELECT COUNT(*) FROM {$table_name} WHERE {$where_sql}";
-		if ( ! empty( $params ) ) {
-			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $where_sql built only from fixed clauses + placeholders above.
-			$total_items = (int) $wpdb->get_var( $wpdb->prepare( $count_sql, $params ) );
-		} else {
-			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- no placeholders when only literal clauses (e.g. user_id > 0).
-			$total_items = (int) $wpdb->get_var( $count_sql );
-		}
+		$count_sql   = "SELECT COUNT(*) FROM {$table_name} WHERE {$where_sql}";
+		$total_items = (int) $this->db_get_var( $count_sql, $params );
 
 		$data_params = array_merge( $params, array( $per_page, $offset ) );
 		$data_sql    = "SELECT id, user_id, group_id, type, label, meta, action_type, object_type, object_name, changes, created_at
@@ -629,11 +682,10 @@ class WhoChanged_Logger {
 			ORDER BY created_at DESC
 			LIMIT %d OFFSET %d";
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $where_sql is built from controlled fragments; values passed via prepare().
-		$rows = $wpdb->get_results( $wpdb->prepare( $data_sql, $data_params ), ARRAY_A );
+		$rows = $this->db_get_results( $data_sql, $data_params );
 
 		return array(
-			'items'       => is_array( $rows ) ? $rows : array(),
+			'items'       => $rows,
 			'total_items' => $total_items,
 			'total_pages' => (int) ceil( max( 1, $total_items ) / $per_page ),
 		);
@@ -664,17 +716,10 @@ class WhoChanged_Logger {
 			$this->append_created_at_range_clauses( $clauses, $params, $date_from_ymd, $date_to_ymd );
 		}
 
-		$where_sql = ! empty( $clauses ) ? implode( ' AND ', $clauses ) : '1=1';
+		list( $where_sql, $params ) = $this->finalize_where( $clauses, $params );
 
 		$count_sql   = "SELECT COUNT(*) FROM {$table_name} WHERE {$where_sql}";
-		$total_items = 0;
-		if ( ! empty( $params ) ) {
-			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $where_sql built only from fixed clauses + placeholders above.
-			$total_items = (int) $wpdb->get_var( $wpdb->prepare( $count_sql, $params ) );
-		} else {
-			// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- no placeholders when only literal clauses (e.g. user_id > 0).
-			$total_items = (int) $wpdb->get_var( $count_sql );
-		}
+		$total_items = (int) $this->db_get_var( $count_sql, $params );
 
 		$analytics = array(
 			'total_items'          => $total_items,
@@ -694,53 +739,53 @@ class WhoChanged_Logger {
 		);
 
 		$distinct_users_sql        = "SELECT COUNT(DISTINCT user_id) FROM {$table_name} WHERE {$where_sql}";
-		$analytics['unique_users'] = ! empty( $params ) ? (int) $wpdb->get_var( $wpdb->prepare( $distinct_users_sql, $params ) ) : (int) $wpdb->get_var( $distinct_users_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$analytics['unique_users'] = (int) $this->db_get_var( $distinct_users_sql, $params );
 
 		$distinct_actions_sql             = "SELECT COUNT(DISTINCT action_type) FROM {$table_name} WHERE {$where_sql}";
-		$analytics['unique_action_types'] = ! empty( $params ) ? (int) $wpdb->get_var( $wpdb->prepare( $distinct_actions_sql, $params ) ) : (int) $wpdb->get_var( $distinct_actions_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$analytics['unique_action_types'] = (int) $this->db_get_var( $distinct_actions_sql, $params );
 
 		$distinct_object_sql              = "SELECT COUNT(DISTINCT object_type) FROM {$table_name} WHERE {$where_sql}";
-		$analytics['unique_object_types'] = ! empty( $params ) ? (int) $wpdb->get_var( $wpdb->prepare( $distinct_object_sql, $params ) ) : (int) $wpdb->get_var( $distinct_object_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$analytics['unique_object_types'] = (int) $this->db_get_var( $distinct_object_sql, $params );
 
 		$top_types_sql                 = "SELECT action_type, COUNT(*) AS c FROM {$table_name} WHERE {$where_sql} GROUP BY action_type ORDER BY c DESC LIMIT 6";
-		$analytics['top_action_types'] = ! empty( $params ) ? $wpdb->get_results( $wpdb->prepare( $top_types_sql, $params ), ARRAY_A ) : $wpdb->get_results( $top_types_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$analytics['top_action_types'] = $this->db_get_results( $top_types_sql, $params );
 
 		$top_users_sql          = "SELECT user_id, COUNT(*) AS c FROM {$table_name} WHERE {$where_sql} GROUP BY user_id ORDER BY c DESC LIMIT 6";
-		$analytics['top_users'] = ! empty( $params ) ? $wpdb->get_results( $wpdb->prepare( $top_users_sql, $params ), ARRAY_A ) : $wpdb->get_results( $top_users_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$analytics['top_users'] = $this->db_get_results( $top_users_sql, $params );
 
 		$top_object_types_sql          = "SELECT object_type, COUNT(*) AS c FROM {$table_name} WHERE {$where_sql} GROUP BY object_type ORDER BY c DESC LIMIT 6";
-		$analytics['top_object_types'] = ! empty( $params ) ? $wpdb->get_results( $wpdb->prepare( $top_object_types_sql, $params ), ARRAY_A ) : $wpdb->get_results( $top_object_types_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$analytics['top_object_types'] = $this->db_get_results( $top_object_types_sql, $params );
 
 		// LIMIT is a safety cap, not a day-count filter — the WHERE clause already
 		// scopes rows to the selected range. 90 comfortably covers every built-in
 		// preset (today/7d/30d) plus most custom ranges.
 		$top_days_sql          = "SELECT DATE(created_at) AS day, COUNT(*) AS c FROM {$table_name} WHERE {$where_sql} GROUP BY DATE(created_at) ORDER BY day DESC LIMIT 90";
-		$analytics['top_days'] = ! empty( $params ) ? $wpdb->get_results( $wpdb->prepare( $top_days_sql, $params ), ARRAY_A ) : $wpdb->get_results( $top_days_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$analytics['top_days'] = $this->db_get_results( $top_days_sql, $params );
 
 		// Hour-of-day distribution, shifted to the site's local timezone so "peak
 		// hour" insights match what the admin sees on their clock, not UTC.
 		$offset_seconds         = (int) round( (float) get_option( 'gmt_offset', 0 ) * HOUR_IN_SECONDS );
 		$top_hours_sql          = "SELECT HOUR(DATE_ADD(created_at, INTERVAL %d SECOND)) AS h, COUNT(*) AS c FROM {$table_name} WHERE {$where_sql} GROUP BY h ORDER BY h ASC";
 		$top_hours_params       = array_merge( array( $offset_seconds ), $params );
-		$analytics['top_hours'] = $wpdb->get_results( $wpdb->prepare( $top_hours_sql, $top_hours_params ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$analytics['top_hours'] = $this->db_get_results( $top_hours_sql, $top_hours_params );
 
 		// Weekday × hour heatmap (site-local time) — the same offset shift as
 		// top_hours, applied to both the day-of-week and hour extraction so the
 		// two stay in sync. DAYOFWEEK() returns 1 (Sunday) .. 7 (Saturday).
 		$heatmap_sql          = "SELECT DAYOFWEEK(DATE_ADD(created_at, INTERVAL %d SECOND)) AS dow, HOUR(DATE_ADD(created_at, INTERVAL %d SECOND)) AS h, COUNT(*) AS c FROM {$table_name} WHERE {$where_sql} GROUP BY dow, h";
 		$heatmap_params       = array_merge( array( $offset_seconds, $offset_seconds ), $params );
-		$analytics['heatmap'] = $wpdb->get_results( $wpdb->prepare( $heatmap_sql, $heatmap_params ), ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$analytics['heatmap'] = $this->db_get_results( $heatmap_sql, $heatmap_params );
 
 		// Most-changed specific items — e.g. "Homepage" edited 12 times — the
 		// concrete answer to "what keeps changing", one level more specific than
 		// top_object_types (which only knows the type, e.g. "Post").
 		$top_names_sql                  = "SELECT object_type, object_name, COUNT(*) AS c FROM {$table_name} WHERE {$where_sql} AND object_name <> '' GROUP BY object_type, object_name ORDER BY c DESC LIMIT 5";
-		$analytics['top_changed_items'] = ! empty( $params ) ? $wpdb->get_results( $wpdb->prepare( $top_names_sql, $params ), ARRAY_A ) : $wpdb->get_results( $top_names_sql, ARRAY_A ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$analytics['top_changed_items'] = $this->db_get_results( $top_names_sql, $params );
 
 		// Earliest matching record — powers "tracking since" context and the
 		// average-per-day metric when no explicit date range is selected.
 		$first_activity_sql              = "SELECT MIN(created_at) FROM {$table_name} WHERE {$where_sql}";
-		$analytics['first_activity_gmt'] = ! empty( $params ) ? $wpdb->get_var( $wpdb->prepare( $first_activity_sql, $params ) ) : $wpdb->get_var( $first_activity_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+		$analytics['first_activity_gmt'] = (string) $this->db_get_var( $first_activity_sql, $params );
 
 		// Period-over-period comparison: only meaningful when the admin picked a
 		// bounded range (a preset or custom dates). "All time" has no comparable
@@ -751,12 +796,10 @@ class WhoChanged_Logger {
 			if ( null !== $previous_range ) {
 				list( $previous_clauses, $previous_params ) = $this->build_analytics_base_where( $user_id, $action_type, $log_scope, $search );
 				$this->append_created_at_range_clauses( $previous_clauses, $previous_params, $previous_range['from'], $previous_range['to'] );
-				$previous_where_sql = ! empty( $previous_clauses ) ? implode( ' AND ', $previous_clauses ) : '1=1';
+				list( $previous_where_sql, $previous_params ) = $this->finalize_where( $previous_clauses, $previous_params );
 				$previous_count_sql = "SELECT COUNT(*) FROM {$table_name} WHERE {$previous_where_sql}";
 
-				$analytics['previous_total_items'] = ! empty( $previous_params )
-					? (int) $wpdb->get_var( $wpdb->prepare( $previous_count_sql, $previous_params ) ) // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
-					: (int) $wpdb->get_var( $previous_count_sql ); // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared
+				$analytics['previous_total_items'] = (int) $this->db_get_var( $previous_count_sql, $previous_params );
 				$analytics['previous_available']   = true;
 			}
 		}
@@ -764,17 +807,6 @@ class WhoChanged_Logger {
 		return $analytics;
 	}
 
-	/**
-	 * Shared WHERE clauses (user/scope/action/search) used by analytics queries,
-	 * without any date-range restriction — callers append their own date bounds
-	 * so the same filters can be reused for both the current and previous period.
-	 *
-	 * @param int    $user_id     User filter (0 = all users / system depends on scope).
-	 * @param string $action_type Action filter.
-	 * @param string $log_scope   'user' (user_id > 0) or 'system' (user_id = 0 only).
-	 * @param string $search      Search keyword.
-	 * @return array{0: array<int, string>, 1: array<int, mixed>}
-	 */
 	private function build_analytics_base_where( $user_id, $action_type, $log_scope, $search ) {
 		global $wpdb;
 
@@ -796,7 +828,8 @@ class WhoChanged_Logger {
 			$clauses[] = 'user_id = %d';
 			$params[]  = $sanitized_user_id;
 		} else {
-			$clauses[] = 'user_id > 0';
+			$clauses[] = 'user_id > %d';
+			$params[]  = 0;
 		}
 
 		if ( '' !== $sanitized_action_type ) {
@@ -881,10 +914,11 @@ class WhoChanged_Logger {
 		$params  = array( $since_gmt );
 
 		if ( ! $include_system ) {
-			$clauses[] = 'user_id > 0';
+			$clauses[] = 'user_id > %d';
+			$params[]  = 0;
 		}
 
-		$where_sql   = implode( ' AND ', $clauses );
+		list( $where_sql, $params ) = $this->finalize_where( $clauses, $params );
 		$data_params = array_merge( $params, array( $limit ) );
 		$data_sql    = "SELECT id, user_id, group_id, type, label, meta, action_type, object_type, object_name, changes, created_at
 			FROM {$table_name}
@@ -892,8 +926,7 @@ class WhoChanged_Logger {
 			ORDER BY created_at DESC
 			LIMIT %d";
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $where_sql built from fixed clauses + placeholders above.
-		$rows = $wpdb->get_results( $wpdb->prepare( $data_sql, $data_params ), ARRAY_A );
+		$rows = $this->db_get_results( $data_sql, $data_params );
 
 		return is_array( $rows ) ? $rows : array();
 	}

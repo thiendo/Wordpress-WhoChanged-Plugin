@@ -1,1 +1,205 @@
-(function(){"use strict";var c=0;function l(){if(c++,typeof Chart>"u"){c<40&&setTimeout(l,150);return}if(typeof WhoChangedStats>"u"||!WhoChangedStats)return;var r=WhoChangedStats.palette||[],m=WhoChangedStats.actions||{labels:[],values:[],centerLabel:""},y=WhoChangedStats.users||{labels:[],values:[],centerLabel:""},S=WhoChangedStats.objects||{labels:[],values:[]},x=WhoChangedStats.days||{labels:[],values:[]},k=WhoChangedStats.hours||{labels:[],values:[]},W=WhoChangedStats.weekdays||{labels:[],values:[]},w=WhoChangedStats.i18n&&WhoChangedStats.i18n.items?WhoChangedStats.i18n.items:"Items";function B(a){var t=[],e;for(e=0;e<a;e++)t.push(r[e%r.length]);return t}function i(a,t){var e=parseInt(a.slice(1,3),16),n=parseInt(a.slice(3,5),16),s=parseInt(a.slice(5,7),16);return"rgba("+e+","+n+","+s+","+t+")"}var I={id:"whochangedCenterText",afterDraw:function(a){var t=(a.data.datasets[0].data||[]).reduce(function(u,A){return u+A},0),e=a.ctx,n=a.chartArea,s=(n.left+n.right)/2,o=(n.top+n.bottom)/2;e.save(),e.textAlign="center",e.textBaseline="middle",e.font='600 20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',e.fillStyle="#1f2937",e.fillText(String(t),s,o-8),e.font='500 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',e.fillStyle="#6b7280",e.fillText(a.data.centerLabel||"",s,o+12),e.restore()}};function g(a,t){return!t.values||!t.values.length?null:new Chart(a,{type:"doughnut",data:{labels:t.labels,centerLabel:t.centerLabel,datasets:[{data:t.values,backgroundColor:B(t.values.length),borderColor:"#fff",borderWidth:2,hoverOffset:4}]},plugins:[I],options:{responsive:!0,maintainAspectRatio:!1,cutout:"68%",plugins:{legend:{display:!1},tooltip:{callbacks:{label:function(e){var n=e.dataset.data.reduce(function(o,u){return o+u},0),s=n>0?Math.round(e.parsed/n*100):0;return e.label+": "+e.parsed+" ("+s+"%)"}}}}}})}function L(a,t){var e=a.createLinearGradient(0,0,0,260);return e.addColorStop(0,i(r[0],.28)),e.addColorStop(1,i(r[0],.02)),new Chart(a,{type:"line",data:{labels:t.labels,datasets:[{label:w,data:t.values,borderColor:r[0],backgroundColor:e,fill:!0,tension:.35,pointRadius:0,pointHoverRadius:5,pointBackgroundColor:r[0],borderWidth:2}]},options:{responsive:!0,maintainAspectRatio:!1,interaction:{intersect:!1,mode:"index"},plugins:{legend:{display:!1}},scales:{x:{grid:{display:!1}},y:{beginAtZero:!0,ticks:{precision:0}}}}})}function d(a,t,e){var n=r[e%r.length];return new Chart(a,{type:"bar",data:{labels:t.labels,datasets:[{data:t.values,backgroundColor:i(n,.85),borderRadius:4,maxBarThickness:36}]},options:{responsive:!0,maintainAspectRatio:!1,plugins:{legend:{display:!1}},scales:{x:{grid:{display:!1}},y:{beginAtZero:!0,ticks:{precision:0}}}}})}var h=document.getElementById("whochangedChartActions");h&&g(h.getContext("2d"),m);var f=document.getElementById("whochangedChartUsers");f&&g(f.getContext("2d"),y);var v=document.getElementById("whochangedChartDays");v&&L(v.getContext("2d"),x);var p=document.getElementById("whochangedChartObjects");p&&d(p.getContext("2d"),S,0);var b=document.getElementById("whochangedChartHours");b&&d(b.getContext("2d"),k,4);var C=document.getElementById("whochangedChartWeekdays");C&&d(C.getContext("2d"),W,5)}document.readyState==="loading"?document.addEventListener("DOMContentLoaded",l):l()})();
+/**
+ * WhoChanged Statistics charts (Chart.js).
+ * Data comes from wp_localize_script( 'whochanged-stats', 'WhoChangedStats', … ).
+ */
+(function () {
+	'use strict';
+
+	var attempts = 0;
+
+	function init() {
+		attempts++;
+		if (typeof Chart === 'undefined') {
+			if (attempts < 40) {
+				setTimeout(init, 150);
+			}
+			return;
+		}
+
+		if (typeof WhoChangedStats === 'undefined' || !WhoChangedStats) {
+			return;
+		}
+
+		var colorPalette = WhoChangedStats.palette || [];
+		var actions = WhoChangedStats.actions || { labels: [], values: [], centerLabel: '' };
+		var users = WhoChangedStats.users || { labels: [], values: [], centerLabel: '' };
+		var objects = WhoChangedStats.objects || { labels: [], values: [] };
+		var days = WhoChangedStats.days || { labels: [], values: [] };
+		var hours = WhoChangedStats.hours || { labels: [], values: [] };
+		var weekdays = WhoChangedStats.weekdays || { labels: [], values: [] };
+		var itemsLabel = WhoChangedStats.i18n && WhoChangedStats.i18n.items
+			? WhoChangedStats.i18n.items
+			: 'Items';
+
+		function pickColors(count) {
+			var out = [];
+			var i;
+			for (i = 0; i < count; i++) {
+				out.push(colorPalette[i % colorPalette.length]);
+			}
+			return out;
+		}
+
+		function hexToRgba(hex, alpha) {
+			var r = parseInt(hex.slice(1, 3), 16);
+			var g = parseInt(hex.slice(3, 5), 16);
+			var b = parseInt(hex.slice(5, 7), 16);
+			return 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+		}
+
+		var centerTextPlugin = {
+			id: 'whochangedCenterText',
+			afterDraw: function (chart) {
+				var total = (chart.data.datasets[0].data || []).reduce(function (a, b) {
+					return a + b;
+				}, 0);
+				var ctx = chart.ctx;
+				var area = chart.chartArea;
+				var cx = (area.left + area.right) / 2;
+				var cy = (area.top + area.bottom) / 2;
+				ctx.save();
+				ctx.textAlign = 'center';
+				ctx.textBaseline = 'middle';
+				ctx.font = '600 20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+				ctx.fillStyle = '#1f2937';
+				ctx.fillText(String(total), cx, cy - 8);
+				ctx.font = '500 11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+				ctx.fillStyle = '#6b7280';
+				ctx.fillText(chart.data.centerLabel || '', cx, cy + 12);
+				ctx.restore();
+			}
+		};
+
+		function mkDoughnut(ctx, data) {
+			if (!data.values || !data.values.length) {
+				return null;
+			}
+			return new Chart(ctx, {
+				type: 'doughnut',
+				data: {
+					labels: data.labels,
+					centerLabel: data.centerLabel,
+					datasets: [{
+						data: data.values,
+						backgroundColor: pickColors(data.values.length),
+						borderColor: '#fff',
+						borderWidth: 2,
+						hoverOffset: 4
+					}]
+				},
+				plugins: [centerTextPlugin],
+				options: {
+					responsive: true,
+					maintainAspectRatio: false,
+					cutout: '68%',
+					plugins: {
+						legend: { display: false },
+						tooltip: {
+							callbacks: {
+								label: function (item) {
+									var sum = item.dataset.data.reduce(function (a, b) {
+										return a + b;
+									}, 0);
+									var pct = sum > 0 ? Math.round((item.parsed / sum) * 100) : 0;
+									return item.label + ': ' + item.parsed + ' (' + pct + '%)';
+								}
+							}
+						}
+					}
+				}
+			});
+		}
+
+		function mkLine(ctx, data) {
+			var gradient = ctx.createLinearGradient(0, 0, 0, 260);
+			gradient.addColorStop(0, hexToRgba(colorPalette[0], 0.28));
+			gradient.addColorStop(1, hexToRgba(colorPalette[0], 0.02));
+			return new Chart(ctx, {
+				type: 'line',
+				data: {
+					labels: data.labels,
+					datasets: [{
+						label: itemsLabel,
+						data: data.values,
+						borderColor: colorPalette[0],
+						backgroundColor: gradient,
+						fill: true,
+						tension: 0.35,
+						pointRadius: 0,
+						pointHoverRadius: 5,
+						pointBackgroundColor: colorPalette[0],
+						borderWidth: 2
+					}]
+				},
+				options: {
+					responsive: true,
+					maintainAspectRatio: false,
+					interaction: { intersect: false, mode: 'index' },
+					plugins: {
+						legend: { display: false }
+					},
+					scales: {
+						x: { grid: { display: false } },
+						y: { beginAtZero: true, ticks: { precision: 0 } }
+					}
+				}
+			});
+		}
+
+		function mkBar(ctx, data, colorIndex) {
+			var color = colorPalette[colorIndex % colorPalette.length];
+			return new Chart(ctx, {
+				type: 'bar',
+				data: {
+					labels: data.labels,
+					datasets: [{
+						data: data.values,
+						backgroundColor: hexToRgba(color, 0.85),
+						borderRadius: 4,
+						maxBarThickness: 36
+					}]
+				},
+				options: {
+					responsive: true,
+					maintainAspectRatio: false,
+					plugins: { legend: { display: false } },
+					scales: {
+						x: { grid: { display: false } },
+						y: { beginAtZero: true, ticks: { precision: 0 } }
+					}
+				}
+			});
+		}
+
+		var c1 = document.getElementById('whochangedChartActions');
+		if (c1) {
+			mkDoughnut(c1.getContext('2d'), actions);
+		}
+		var c2 = document.getElementById('whochangedChartUsers');
+		if (c2) {
+			mkDoughnut(c2.getContext('2d'), users);
+		}
+		var c3 = document.getElementById('whochangedChartDays');
+		if (c3) {
+			mkLine(c3.getContext('2d'), days);
+		}
+		var c4 = document.getElementById('whochangedChartObjects');
+		if (c4) {
+			mkBar(c4.getContext('2d'), objects, 0);
+		}
+		var c5 = document.getElementById('whochangedChartHours');
+		if (c5) {
+			mkBar(c5.getContext('2d'), hours, 4);
+		}
+		var c6 = document.getElementById('whochangedChartWeekdays');
+		if (c6) {
+			mkBar(c6.getContext('2d'), weekdays, 5);
+		}
+	}
+
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', init);
+	} else {
+		init();
+	}
+})();

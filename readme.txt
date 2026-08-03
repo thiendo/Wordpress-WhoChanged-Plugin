@@ -5,7 +5,7 @@ Tags: activity log, audit log, admin log, change tracking, security
 Requires at least: 6.0
 Tested up to: 7.0
 Requires PHP: 7.4
-Stable tag: 1.1.2
+Stable tag: 1.1.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -54,6 +54,14 @@ Free is genuinely useful on its own — full event coverage, filtering, diffs an
 
 Found a bug or have a feature request? Please reach out through the plugin's support page. We read every report.
 
+== Development ==
+
+Human-readable source for plugin-owned JavaScript and CSS is included in this package under `assets/js/` and `assets/css/` (`admin.js`, `admin-bar.js`, `stats-charts.js`, and matching stylesheets). Third-party libraries under `assets/js/vendor/` and `assets/css/vendor/` ship as upstream distribution builds (Chart.js, Flatpickr).
+
+Public source repository: https://github.com/thiendo/Wordpress-WhoChanged-Plugin
+
+No build tools are required to review or modify the plugin-owned admin scripts and styles.
+
 == Installation ==
 
 1. Upload the `whochanged` folder to the `/wp-content/plugins/` directory, or install the plugin through the WordPress plugins screen directly.
@@ -99,6 +107,10 @@ Open **WhoChanged → Account** and activate the license key from your Freemius 
 2. Settings screen with retention, email alerts and role-based access controls (PRO).
 
 == Changelog ==
+
+= 1.1.3 =
+* Compliance: Restored human-readable plugin-owned JavaScript/CSS sources and documented the public repository in the readme.
+* Security: Hardened dynamic log/analytics SQL queries to always use wpdb::prepare() with placeholders.
 
 = 1.1.2 =
 * Compliance: Moved configurable retention, email alerts, and role-based logging/viewer access implementations into the PRO-only module (excluded from this Free package). Free keeps fixed 30-day retention and administrator-only log viewing.
