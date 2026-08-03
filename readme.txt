@@ -14,6 +14,8 @@ Know exactly who changed what in your WordPress admin — options, Customizer, p
 == Description ==
 
 **Plugin URL:** https://douple.net/whochanged/
+**Docs:** https://douple.net/whochanged/docs.html
+**GitHub:** https://github.com/thiendo/Wordpress-WhoChanged-Plugin
 **Support:** support@douple.net
 **Get WhoChanged PRO:** https://checkout.freemius.com/plugin/35452/plan/58744/
 
