@@ -1,5 +1,5 @@
 === WhoChanged ===
-Contributors: douple
+Contributors: Douple
 Plugin URI: https://douple.net/whochanged/
 Tags: activity log, audit log, admin log, change tracking, security
 Requires at least: 6.0
@@ -13,9 +13,9 @@ Know exactly who changed what in your WordPress admin — options, Customizer, p
 
 == Description ==
 
-**Plugin URL:** [https://douple.net/whochanged/](https://douple.net/whochanged/)
-**Support:** [support@douple.net](mailto:support@douple.net)
-**Get WhoChanged PRO:** [https://checkout.freemius.com/plugin/35452/plan/58744/](https://checkout.freemius.com/plugin/35452/plan/58744/)
+**Plugin URL:** https://douple.net/whochanged/
+**Support:** support@douple.net
+**Get WhoChanged PRO:** https://checkout.freemius.com/plugin/35452/plan/58744/
 
 **WhoChanged** is a lightweight activity log for WordPress that quietly watches the admin area and records every meaningful change: who did it, what changed, and when. When something breaks after an update or a client swears "I didn't touch anything," WhoChanged gives you the answer in seconds instead of hours.
 
@@ -60,7 +60,7 @@ Found a bug or have a feature request? Please reach out through the plugin's sup
 2. Activate the plugin through the "Plugins" screen in WordPress.
 3. Go to the **WhoChanged** menu in your admin sidebar to view the activity log.
 4. (Optional) Visit **WhoChanged → Settings** to review your 30-day Free retention window, or upgrade to PRO to configure longer retention, email alerts and role-based access.
-5. Full documentation: [https://douple.net/whochanged/docs.html](https://douple.net/whochanged/docs.html)
+5. Full documentation: https://douple.net/whochanged/docs.html
 
 == Frequently Asked Questions ==
 
@@ -82,20 +82,16 @@ WhoChanged is designed for single-site installs. Multisite support is on the roa
 
 = How do I upgrade to PRO? =
 
-1. Purchase WhoChanged PRO at [https://douple.net/whochanged/#pricing](https://douple.net/whochanged/#pricing) (or from **WhoChanged → Pricing / Upgrade** in wp-admin).
+1. Purchase WhoChanged PRO at https://douple.net/whochanged/#pricing (or from **WhoChanged → Pricing / Upgrade** in wp-admin).
 2. Complete Freemius checkout. Your license key is emailed to the address you used at payment.
 3. In wp-admin go to **WhoChanged → Account**, click **Activate License**, and paste the key.
 4. Confirm **WhoChanged → Settings** shows **PRO Active**.
 
-If you checkout from inside the same site's wp-admin, Freemius often activates the license automatically. Full guide: [https://douple.net/whochanged/docs.html](https://douple.net/whochanged/docs.html)
+If you checkout from inside the same site's wp-admin, Freemius often activates the license automatically. Full guide: https://douple.net/whochanged/docs.html
 
 = I bought PRO but the plugin still shows Free =
 
 Open **WhoChanged → Account** and activate the license key from your Freemius purchase email. If the plan's site limit is full, deactivate the license on an unused site first, then activate on this one.
-
-= How do I contact support? =
-
-Email [support@douple.net](mailto:support@douple.net).
 
 == Screenshots ==
 
